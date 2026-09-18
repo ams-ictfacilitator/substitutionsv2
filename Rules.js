@@ -423,6 +423,52 @@ function checkRules() {
     } else if (r.type.id === 'BLOCK_AFFINITY') {
       if (r.then !== '' && isNaN(parseFloat(r.then))) issues.push('strength "' + r.then + '" is not a number');
       if (!mappedClasses) issues.push('🏫 Blocks & Floors is empty, so this rule can never apply');
+    } else if (r.type.id === 'FREE_PERIOD_GUARD') {
+      var ladderCheck = parseLadder_(r.then);
+      if (!ladderCheck) {
+        issues.push('ladder "' + r.then + '" does not parse — expected pairs like "1:0, 2:1" — rule is unusable');
+      } else {
+        for (var freeKey in ladderCheck) {
+          if (ladderCheck[freeKey] > Number(freeKey)) {
+            issues.push('max subs ' + ladderCheck[freeKey] + ' exceeds the ' + freeKey + ' free period(s) it is keyed to — legal but pointless');
+          }
+        }
+        if (ladderCheck.hasOwnProperty(1) && !ladderCheck.hasOwnProperty(0)) {
+          issues.push('rung "1" is set but rung "0" is missing — a reader will assume 0 free periods also means 0 substitutions');
+        }
+        if (sourceErr) {
+          issues.push('pool impact could not be checked — the timetable workbook is unreachable');
+        } else {
+          try {
+            var poolG = buildPool();
+            var cfgG = getConfig();
+            var whoKeyG = norm_(r.who);
+            var allG = !whoKeyG || up_(whoKeyG) === 'ALL';
+            var keyG = up_(whoKeyG);
+            var poolTotal = poolG.members.length;
+            var worstCount = 0, worstDay = '';
+            for (var gd = 0; gd < cfgG.days.length; gd++) {
+              var freeG = freeCountByTeacher_({ freeByTeacher: {} }, gd);
+              var capped = 0;
+              for (var gm = 0; gm < poolG.members.length; gm++) {
+                var mem = poolG.members[gm];
+                var matches = allG || keyG === up_(mem.teacher) || (mem.team && keyG === up_(mem.team));
+                if (!matches) continue;
+                var freeN = freeG[up_(mem.teacher)];
+                if (freeN === undefined) freeN = cfgG.periods;
+                var capN = ladderCheck.hasOwnProperty(freeN) ? ladderCheck[freeN] : Infinity;
+                if (capN === 0) capped++;
+              }
+              if (capped > worstCount) { worstCount = capped; worstDay = cfgG.days[gd]; }
+            }
+            if (poolTotal > 0 && worstCount / poolTotal > 0.5) {
+              issues.push('would cap ' + worstCount + ' of ' + poolTotal + ' pool member(s) at 0 substitutions on ' + worstDay + ' — over half the pool');
+            }
+          } catch (e) {
+            issues.push('pool impact could not be checked — ' + e.message);
+          }
+        }
+      }
     }
 
     var state = !r.enabled ? '⏸ disabled' : r.expired ? '⌛ expired ' + isoDate_(r.until) : '✅ active';
