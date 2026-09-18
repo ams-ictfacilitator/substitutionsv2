@@ -94,6 +94,8 @@ function buildRuleContext_() {
       blocks: readBlocks_(),
       teamByClass: {},
       homeBlock: {},
+      freeGuards: [],          // ordered; first match wins — { all, key, ladder }
+      freeByTeacher: {},       // dayIndex -> { 'ANITA MARY': freePeriodCount }, built lazily
       problems: [],
       active: [],
       any: false,
@@ -125,6 +127,13 @@ function buildRuleContext_() {
           if (isNaN(strength) || strength < 0) strength = DEFAULT_BLOCK_BONUS;
           ctx.blockBonus = strength;
           ctx.active.push({ label: r.type.label, detail: 'strength ' + strength });
+
+        } else if (r.type.id === 'FREE_PERIOD_GUARD') {
+          var ladder = parseLadder_(r.then);
+          if (!ladder) { ctx.problems.push(ruleProblem_(r, 'needs a valid ladder like "1:0, 2:1"')); continue; }
+          var whoKey = norm_(r.who);
+          ctx.freeGuards.push({ all: !whoKey || up_(whoKey) === 'ALL', key: up_(whoKey), ladder: ladder });
+          ctx.active.push({ label: r.type.label, detail: (whoKey || 'All') + ' → ' + r.then });
         }
       } catch (e) {
         ctx.problems.push(ruleProblem_(r, e.message));
@@ -195,6 +204,84 @@ function blockBonusFor_(ctx, teacher, slot) {
   var info = blockFor_(ctx.blocks, slot.class, slot.section);
   if (!info || !info.blockKey) return 0;
   return ctx.homeBlock[up_(teacher)] === info.blockKey ? ctx.blockBonus : 0;
+}
+
+/**
+ * Parse a "1:0, 2:1" ladder into { 1: 0, 2: 1 }. Pairs may be separated by
+ * commas or semicolons, whitespace tolerated. Returns null — never throws —
+ * when anything doesn't parse to two non-negative integers, so the caller
+ * can reject the WHOLE rule rather than apply it half-parsed.
+ */
+function parseLadder_(v) {
+  var pairs = String(v == null ? '' : v).split(/[,;]/).map(function (s) { return s.trim(); })
+    .filter(function (s) { return s.length > 0; });
+  if (!pairs.length) return null;
+  var ladder = {};
+  for (var i = 0; i < pairs.length; i++) {
+    var m = /^(\d+)\s*:\s*(\d+)$/.exec(pairs[i]);
+    if (!m) return null;
+    ladder[parseInt(m[1], 10)] = parseInt(m[2], 10);
+  }
+  return ladder;
+}
+
+/**
+ * Free-period count per teacher for one day, derived from the timetable and
+ * staff duties ONLY — never from the engine's `busy` map, which already
+ * absorbs cover committed earlier this run and would make the cap shrink
+ * with every assignment (RFC-001 §5). Built once per day, lazily, and
+ * memoised on the rule context so repeated lookups stay O(1).
+ */
+function freeCountByTeacher_(ctx, dayIndex) {
+  if (ctx.freeByTeacher[dayIndex]) return ctx.freeByTeacher[dayIndex];
+  var cfg = getConfig();
+  var lesson = {};   // 'TEACHER|period' -> true
+  var tt = getTimetable();
+  for (var i = 0; i < tt.length; i++) {
+    var e = tt[i];
+    if (e.dayIndex !== dayIndex || !e.teacher) continue;
+    lesson[up_(e.teacher) + '|' + e.period] = true;
+  }
+  var duty = {};      // 'TEACHER|period' -> true
+  var duties = getStaffDuties();
+  for (var d = 0; d < duties.length; d++) {
+    var du = duties[d];
+    if (du.dayIndex !== dayIndex || !du.teacher) continue;
+    duty[up_(du.teacher) + '|' + du.period] = true;
+  }
+  var teachers = {};
+  for (var k in lesson) teachers[k.split('|')[0]] = true;
+  for (var k2 in duty) teachers[k2.split('|')[0]] = true;
+
+  var free = {};
+  for (var t in teachers) {
+    var n = 0;
+    for (var p = 1; p <= cfg.periods; p++) {
+      var key = t + '|' + p;
+      if (!lesson[key] && !duty[key]) n++;
+    }
+    free[t] = Math.max(0, Math.min(cfg.periods, n));
+  }
+  ctx.freeByTeacher[dayIndex] = free;
+  return free;
+}
+
+/**
+ * Hard check: the most substitutions this teacher may take today, per the
+ * first free-period-guard rule that matches her (by name, by team, or
+ * "All"). Infinity when unguarded — the common case, kept cheap.
+ */
+function freeGuardCap_(ctx, teacher, dayIndex, candidate) {
+  if (!ctx.freeGuards.length) return Infinity;
+  var free = freeCountByTeacher_(ctx, dayIndex)[up_(teacher)];
+  if (free === undefined) free = getConfig().periods;   // no timetable entries at all — fully free
+  var team = up_((candidate && candidate.team) || '');
+  for (var i = 0; i < ctx.freeGuards.length; i++) {
+    var g = ctx.freeGuards[i];
+    if (!(g.all || g.key === up_(teacher) || (team && g.key === team))) continue;
+    return g.ladder.hasOwnProperty(free) ? g.ladder[free] : Infinity;
+  }
+  return Infinity;
 }
 
 /* ───────── the tabs ───────── */

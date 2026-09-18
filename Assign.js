@@ -142,7 +142,7 @@ function computePlan(dateInput, absentTeachers, opts) {
       absentSet: excludeSet, busy: busy, assignedBusy: assignedBusy,
       termUsed: termUsed, weekUsed: weekUsed, dayUsed: dayUsed, runUsed: runUsed,
       weekBasis: weekBasis, basisTotal: basisTotal, runCount: runCount, totalCap: totalCap,
-      coverByTeacher: coverByTeacher, meta: meta, cfg: cfg, rules: rules,
+      coverByTeacher: coverByTeacher, meta: meta, cfg: cfg, rules: rules, dayIndex: dayIndex,
       absentTeam: (meta[slot.absent] && meta[slot.absent].team) || '',
     });
 
@@ -239,7 +239,7 @@ function chooseSubstitute_(slot, pool, st) {
  */
 function scanCandidates_(slot, pool, st, restrictTo) {
   var best = null, bestScore = -Infinity, bestRank = Infinity, bestBlock = false;
-  var blockedByFloor = 0, blockedByCap = 0, blockedByBusy = 0;
+  var blockedByFloor = 0, blockedByCap = 0, blockedByBusy = 0, blockedByFreeGuard = 0;
   var weekBasis = st.weekBasis;
   // fair-share target after this assignment, in subs: cap × (assignedSoFar + 1) ÷ totalWeight
   var targetK = (st.basisTotal + st.runCount + 1) / st.totalCap;
@@ -263,6 +263,14 @@ function scanCandidates_(slot, pool, st, restrictTo) {
     // optional per-day ceiling
     if (st.cfg.maxPerDay > 0 && ((st.dayUsed[name] || 0) + run) >= st.cfg.maxPerDay) { blockedByCap++; continue; }
 
+    // hard rule: a teacher with few free periods that day may not be pulled past her
+    // ladder cap. Free periods come from the timetable/duties, not from `busy` — see
+    // freeGuardCap_ — so this doesn't shrink as the run assigns more cover.
+    if (st.rules && st.rules.any) {
+      var freeCap = freeGuardCap_(st.rules, name, st.dayIndex, m);
+      if (((st.dayUsed[name] || 0) + run) >= freeCap) { blockedByFreeGuard++; continue; }
+    }
+
     // fairness: pick the teacher furthest BELOW their proportional fair share (largest
     // deficit, in subs). This balances cumulative load ∝ weight and is cap-aware, so the
     // whole pool cycles over the term. Preferences add a small, uniform sub-bonus that
@@ -282,7 +290,8 @@ function scanCandidates_(slot, pool, st, restrictTo) {
   }
 
   return { best: best, bonusReason: bestBlock ? 'same block' : '',
-           blockedByFloor: blockedByFloor, blockedByCap: blockedByCap, blockedByBusy: blockedByBusy };
+           blockedByFloor: blockedByFloor, blockedByCap: blockedByCap, blockedByBusy: blockedByBusy,
+           blockedByFreeGuard: blockedByFreeGuard };
 }
 
 /** Say WHY nothing could be assigned — otherwise a rule looks like a bug. */
@@ -290,6 +299,7 @@ function noCandidateReason_(scan, ded) {
   var bits = [];
   if (ded) bits.push('no dedicated ' + ded.team + ' substitute free');
   if (scan.blockedByFloor) bits.push(scan.blockedByFloor + ' blocked by floor limits');
+  if (scan.blockedByFreeGuard) bits.push(scan.blockedByFreeGuard + ' protected by the free-period guard');
   if (scan.blockedByCap) bits.push(scan.blockedByCap + ' at their cap');
   if (scan.blockedByBusy) bits.push(scan.blockedByBusy + ' already teaching or covering');
   return bits.length ? 'No substitute free — ' + bits.join(', ') : 'No substitute free';
