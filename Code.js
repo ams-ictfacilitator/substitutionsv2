@@ -1,6 +1,12 @@
 /**
  * ============================================================
  * Code.gs — Menu, entry points, sidebar bridge.
+ *
+ * NOTE FOR ANYONE EDITING IN THE APPS SCRIPT EDITOR:
+ * this project is maintained in git and deployed with clasp. The repo also
+ * holds a Node test harness under test/, which is excluded by .claspignore —
+ * those files use require()/module.exports and would fail to compile here,
+ * taking the whole project (and this menu) down with them. Never paste them in.
  * ============================================================
  */
 

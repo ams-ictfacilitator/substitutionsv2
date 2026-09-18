@@ -1,0 +1,16 @@
+# Only the Apps Script sources belong in the script project.
+# Everything below exists for the repo, not for Google.
+
+# Node test harness — uses require()/module.exports, which do not exist in
+# Apps Script. Pushing these breaks the whole project at load time.
+test/**
+
+docs/**
+.claude/**
+.git/**
+node_modules/**
+**/node_modules/**
+*.md
+.gitignore
+.claspignore
+.clasp.json.example
