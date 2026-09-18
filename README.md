@@ -285,6 +285,7 @@ entry plus a branch in `buildRuleContext_()`.
 | Dedicated substitute for a team | team name | teacher(s), best first | **first refusal**, then falls back |
 | Limit a teacher to certain floors | teacher | floor name(s) | **hard — never overridden** |
 | Prefer a substitute from the same block | `All` | strength (default 1.5) | soft, competes with fairness |
+| Protect teachers with few free periods | `All`, a team, or a teacher | ladder, e.g. `1:0, 2:1` | **hard — never overridden** |
 
 Every rule row also has `Enabled`, `Until` (auto-expiry), `Priority` and `Notes / Reason`.
 
@@ -314,6 +315,18 @@ teacher's non-Pre-primary periods fall through to normal logic.
 **Why a substitute was chosen** rides on each assignment as `reason`, shown in the side
 panel, as a cell note on the Mark Absence tab, and — for uncovered periods — as the
 specific cause (`3 blocked by floor limits`, `no dedicated Pre-primary substitute free`).
+
+**The free-period guard** caps how many substitutions a teacher can take on a day, keyed
+to how many free periods she has that day — a ladder of `free periods : max
+substitutions` in the `Then` column, e.g. `1:0, 2:1`. A count left off the ladder is
+unconstrained, so `3:2` can be added later with no code change. "Free" is read from the
+timetable and duty roster for the day, **not** from cover already assigned — using cover
+already given out would shrink the count with every assignment and make the cap
+self-defeating. Like floor limits, it is **hard in both passes**: a guard-capped
+dedicated substitute is skipped and the dedicated rule falls back to normal rotation. It
+composes with `Max Substitutions Per Day` in `⚙️ Config` — both are ceilings on the same
+count, so the lower one wins. Full rationale and the compilation/engine details are in
+`docs/rfc/RFC-001-free-period-guard.md`.
 
 ### 6.7 Performance
 
