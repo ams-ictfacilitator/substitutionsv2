@@ -45,6 +45,51 @@ check('notInPool member never appears in neverCalled or belowShare',
   !a.equity.neverCalled.some(function (m) { return m.teacher === 'Outside Teacher'; }) &&
   !a.equity.belowShare.some(function (m) { return m.teacher === 'Outside Teacher'; }));
 
+/* ── 2b: the actual complainant — no allotment row AND zero duties ──
+   RFC-002 §11 item 2. `E` is in the fixture's TEACHERS/Allotment (getAllTeachers()
+   includes all ten), but has no Substitution row of its own here (not seeded with
+   any duties or pool cap) — the fixture pool always includes every TEACHER with a
+   positive cap, so to exercise "no allotment row at all" we override getAllotment()
+   for this one case to drop a teacher from the Substitution rows entirely. */
+(function () {
+  const ctx2 = load(DEFAULT_FILES.concat(['ReportData.js', 'AnalyticsData.js']), SCHOOL + `
+    var _origAllotment = getAllotment;
+    getAllotment = function () {
+      return _origAllotment().filter(function (r) {
+        return !(r.subject === 'Substitution' && r.teacher === 'Teacher E');
+      });
+    };
+    function buildPool() {
+      var cfg = getConfig();
+      var label = cfg.subLabel.toUpperCase();
+      var allot = getAllotment();
+      var members = [], seen = {};
+      for (var i = 0; i < allot.length; i++) {
+        var a = allot[i];
+        if (a.subject.toUpperCase() !== label) continue;
+        var cap = a.periodsAllotted;
+        if (!a.teacher || cap <= 0) continue;
+        if (seen[a.teacher]) continue;
+        seen[a.teacher] = true;
+        members.push({ teacher: a.teacher, cap: cap, department: a.department, team: a.team });
+      }
+      var totalCap = 0;
+      members.forEach(function (m) { totalCap += m.cap; });
+      return { members: members, order: [], capByTeacher: {}, totalCap: totalCap };
+    }
+  `);
+  ctx2.run(`LOG = ${JSON.stringify([row({ substitute: 'Teacher B' })])}; clearCache();`);
+  var m = ctx2.run('buildAnalytics()');
+  var e = m.equity;
+  check('teacher with no allotment row and zero duties appears in notInPool',
+    e.notInPool.some(function (x) { return x.teacher === 'Teacher E'; }),
+    JSON.stringify(e.notInPool.map(function (x) { return x.teacher; })));
+  check('that teacher does not appear in neverCalled',
+    !e.neverCalled.some(function (x) { return x.teacher === 'Teacher E'; }));
+  check('that teacher does not appear in belowShare',
+    !e.belowShare.some(function (x) { return x.teacher === 'Teacher E'; }));
+})();
+
 /* ── 3: Gini 0 for perfectly proportional, rises as load concentrates ── */
 // Two pool teachers with equal weight (use fixture caps: Teacher A=6, Teacher B=4).
 // Perfectly proportional per-weight load: give each exactly weight duties → perWeight = 1 for all.

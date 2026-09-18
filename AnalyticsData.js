@@ -20,8 +20,8 @@ function buildAnalytics() {
 
   // Pool / teacher metadata need the source workbook — degrade quietly without it,
   // same policy as buildWeeklyReportData().
-  var pool = null, meta = {}, sourceErr = '';
-  try { pool = buildPool(); meta = getTeacherMeta(); }
+  var pool = null, meta = {}, allTeachers = null, sourceErr = '';
+  try { pool = buildPool(); meta = getTeacherMeta(); allTeachers = getAllTeachers(); }
   catch (e) { sourceErr = e.message; }
 
   var d = {
@@ -120,7 +120,7 @@ function buildAnalytics() {
   });
 
   /* ── equity (RFC §3) ── */
-  d.equity = buildEquity_(subs, pool, meta, log.length ? d.totalDuties : 0, latestDate);
+  d.equity = buildEquity_(subs, pool, meta, allTeachers, log.length ? d.totalDuties : 0, latestDate);
 
   /* ── variety (RFC §4) ── */
   d.variety = buildVariety_(subs, kClasses, kPeriods, kDays);
@@ -169,25 +169,42 @@ function buildAnalytics() {
 
 /* ───────── equity (RFC §3) ───────── */
 
-function buildEquity_(subs, pool, meta, totalDuties, latestDate) {
+function buildEquity_(subs, pool, meta, allTeachers, totalDuties, latestDate) {
   var members = [], seen = {};
   var neverCalled = [], belowShare = [], notInPool = [];
+  var totalWeight = pool ? poolTotalWeight_(pool) : 0;
 
   if (pool) {
     pool.members.forEach(function (m) {
       seen[m.teacher] = true;
       var s = subs[m.teacher];
       members.push(equityRow_(m.teacher, m.cap, m.department, m.team, s, totalDuties,
-                               poolTotalWeight_(pool), latestDate, true));
+                               totalWeight, latestDate, true));
     });
   }
 
-  // Anyone who has duties but no pool row (weight 0, RFC §3 "not in the pool").
+  // Seed the FULL teacher universe from the Allotment (§3, §11.2) — this is what
+  // surfaces the actual complainant: a teacher with no Substitution row and zero
+  // duties. Seeding only from `subs` (who has duties) can never contain them,
+  // since by definition they have none.
+  if (allTeachers) {
+    allTeachers.forEach(function (name) {
+      if (seen[name]) return;
+      seen[name] = true;
+      var row = equityRow_(name, 0, metaOf_(meta, name, 'department'), metaOf_(meta, name, 'team'),
+                            subs[name], totalDuties, totalWeight, latestDate, false);
+      members.push(row);
+    });
+  }
+
+  // Fallback: anyone who has duties in the log but wasn't reached above (no
+  // source workbook, or a substitute who somehow isn't in the Allotment at
+  // all) is still surfaced rather than silently dropped.
   for (var name in subs) {
     if (seen[name]) continue;
-    var row = equityRow_(name, 0, metaOf_(meta, name, 'department'), metaOf_(meta, name, 'team'),
-                          subs[name], totalDuties, pool ? poolTotalWeight_(pool) : 0, latestDate, false);
-    members.push(row);
+    var row2 = equityRow_(name, 0, metaOf_(meta, name, 'department'), metaOf_(meta, name, 'team'),
+                           subs[name], totalDuties, totalWeight, latestDate, false);
+    members.push(row2);
   }
 
   members.forEach(function (m) {
