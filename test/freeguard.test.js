@@ -125,3 +125,47 @@ const scan = run(`(function(){
 check('blockedByFreeGuard counter is populated', scan.blockedByFreeGuard > 0, JSON.stringify(scan));
 const reason = run(`noCandidateReason_(${JSON.stringify(scan)}, null)`);
 check('uncovered reason names the free-period guard', /free-period guard/.test(reason), reason);
+
+// ── checkRules() diagnostics for FREE_PERIOD_GUARD ──
+// Mock SpreadsheetApp.getUi() so checkRules()'s alert body can be inspected.
+run(`SpreadsheetApp.getUi = function () {
+  return { alert: function (title, msg) { SpreadsheetApp.__lastAlert = msg; }, ButtonSet: { OK: 1 } };
+};`);
+const alertText = () => run('SpreadsheetApp.__lastAlert');
+
+// acceptance 2: a wrong-separator ladder is flagged as unusable
+setRules(`[${R('FREE_PERIOD_GUARD', 'All', '1-0')}]`);
+run('checkRules()');
+check('checkRules() flags an unparseable ladder as unusable', /unusable/.test(alertText()), alertText());
+
+// max-subs-exceeds-free-count is a warning, not a failure
+setRules(`[${R('FREE_PERIOD_GUARD', 'All', '1:5')}]`);
+run('checkRules()');
+check('checkRules() warns when max subs exceeds the free-period count it is keyed to',
+  /exceeds the 1 free period/.test(alertText()), alertText());
+
+// rung 1 present, rung 0 absent
+setRules(`[${R('FREE_PERIOD_GUARD', 'All', '1:1, 2:2')}]`);
+run('checkRules()');
+check('checkRules() warns when rung 1 is present but rung 0 is missing',
+  /rung "1" is set but rung "0" is missing/.test(alertText()), alertText());
+
+// well-formed, no rung-0 issue
+setRules(`[${R('FREE_PERIOD_GUARD', 'All', '0:0, 1:1, 2:2, 3:3, 4:4')}]`);
+run('checkRules()');
+check('checkRules() does not warn about rung 0 when it is present', !/rung "1" is set/.test(alertText()), alertText());
+
+// acceptance 3: warn when a guard would block more than half the pool
+// (every fixture teacher starts with 4 free periods — see pinFreeCount above;
+// undo any duty pushes earlier checks made so the whole pool is back to baseline)
+run('DUTIES.length = 0; clearCache();');
+setRules(`[${R('FREE_PERIOD_GUARD', 'All', '4:0')}]`);
+run('checkRules()');
+check('checkRules() warns when a guard would cap more than half the pool at 0',
+  /over half the pool/.test(alertText()), alertText());
+
+// a guard that can never cap anyone at 0 should not trigger the pool-impact warning
+setRules(`[${R('FREE_PERIOD_GUARD', 'All', '99:99')}]`);
+run('checkRules()');
+check('checkRules() does not warn about pool impact when nobody is capped at 0',
+  !/over half the pool/.test(alertText()), alertText());
