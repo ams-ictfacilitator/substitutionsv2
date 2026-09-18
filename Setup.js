@@ -58,7 +58,7 @@ function upgradeTabs() {
   var builders = [
     [SS.CONSOLE, writeConsoleTab_], [SS.CONFIG, writeConfigTab_],
     [SS.MARK_ABSENCE, writeMarkAbsenceTab_], [SS.POOL, function () {}],
-    [SS.DASHBOARD, function () {}], [SS.LOG, writeLogTab_],
+    [SS.DASHBOARD, function () {}], [SS.ANALYTICS, function () {}], [SS.LOG, writeLogTab_],
     [SS.ABSENCE, writeAbsenceRegisterTab_], [SS.RULES, writeRulesTab_],
     [SS.BLOCKS, writeBlocksTab_], [SS.REPORTS, writeReportsTab_],
     [SS.IMPORT_HR, writeImportHrTab_], [SS.HELP, writeHelpTab_],
@@ -110,7 +110,8 @@ function upgradeTabs() {
  *   REFRESHED 📝 Mark Absence · 🗓️ Absence Register
  *                                          — chrome only: titles, headers,
  *                                            notes, dropdowns. Rows untouched.
- *   RE-RENDERED 🔁 Pool · 📊 Fairness       — derived from the log anyway
+ *   RE-RENDERED 🔁 Pool · 📊 Fairness · 🔎 Analytics
+ *                                          — derived from the log anyway
  *   NEVER TOUCHED ⚙️ Config · 🗂️ Log · 👥 importHR · 📄 Reports
  *                                          — your two months of data. Their
  *                                            layout carries no absence
@@ -161,6 +162,8 @@ function refreshLabels_() {
   clearCache();
   try { renderPool_(); renderFairness_(); done.push('🔁 Pool and 📊 Fairness re-rendered'); }
   catch (e) { /* source not connected — leave them as they are */ }
+  try { renderAnalyticsTab_(); done.push('🔎 Analytics re-rendered'); }
+  catch (e) { done.push('⚠️ 🔎 Analytics: ' + e.message); }
   return done;
 }
 
@@ -257,7 +260,7 @@ function setupAllTabs() {
 
   // Create tabs in a tidy order
   var order = [SS.CONSOLE, SS.CONFIG, SS.MARK_ABSENCE, SS.RULES, SS.BLOCKS, SS.POOL,
-               SS.DASHBOARD, SS.LOG, SS.ABSENCE, SS.REPORTS, SS.IMPORT_HR, SS.HELP];
+               SS.DASHBOARD, SS.ANALYTICS, SS.LOG, SS.ABSENCE, SS.REPORTS, SS.IMPORT_HR, SS.HELP];
   for (var i = 0; i < order.length; i++) {
     var sh = ss.getSheetByName(order[i]) || ss.insertSheet(order[i]);
     ss.setActiveSheet(sh);
@@ -278,7 +281,7 @@ function setupAllTabs() {
   writeImportHrTab_();
   writeHelpTab_();
   clearCache();
-  try { renderPool_(); renderFairness_(); } catch (e) { /* source not connected yet */ }
+  try { renderPool_(); renderFairness_(); renderAnalyticsTab_(); } catch (e) { /* source not connected yet */ }
   ensureAbsenceTrigger_();   // enable tick-to-run on the Mark Leave tab
   try { ensureReportTrigger_(); } catch (e) { Logger.log('Report trigger: ' + e.message); }
 

@@ -44,6 +44,7 @@ function onOpen() {
       .addItem('🏫  Fill in the class list', 'seedBlocks'))
     .addSeparator()
     .addItem('🔁  Refresh Pool & Fairness', 'refreshPoolAndFairness')
+    .addItem('🔎  Refresh Analytics', 'refreshAnalyticsTab')
     .addItem('↩️  Clear a date\'s assignments', 'clearDatePrompt')
     .addSeparator()
     .addItem('🆔  Show my Chat ID', 'showMyChatId')

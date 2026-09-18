@@ -13,6 +13,7 @@ const SS = {
   POOL:      '🔁 Substitution Pool',
   LOG:       '🗂️ Log',
   DASHBOARD: '📊 Fairness',
+  ANALYTICS: '🔎 Analytics',
   ABSENCE:   '🗓️ Absence Register',
   RULES:     '⚖️ Rules',
   BLOCKS:    '🏫 Blocks & Floors',
