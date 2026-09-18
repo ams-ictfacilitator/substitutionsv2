@@ -112,7 +112,10 @@ function generateAnalyticsReport_() {
  */
 function analyticsKpiForRecord_(d) {
   return {
-    teacherDays: d.totalRows,
+    // The 📄 Reports tab's columns were designed for the weekly report. "Absences"
+    // has no whole-history equivalent — total log rows is not a count of absences —
+    // so leave it blank rather than put a wrong number under the label.
+    teacherDays: '',
     periodsLost: d.totalDuties + d.gaps.total,
     covered: d.totalDuties,
     uncovered: d.gaps.total,
