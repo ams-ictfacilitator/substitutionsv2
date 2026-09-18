@@ -7,3 +7,6 @@
 node_modules/
 *.log
 _scratch/
+
+# agent worktrees
+.claude/
