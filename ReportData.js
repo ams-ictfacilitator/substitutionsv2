@@ -157,7 +157,7 @@ function buildWeeklyReportData(weekKey) {
   };
 
   /* ── rules in force, and how often the dedicated ones actually held ── */
-  d.rules = buildRulesSummary_(log, meta);
+  d.rules = buildRulesSummary_(log, meta, pool, span.days);
 
   /* ── headline call-outs ── */
   d.callouts = buildCallouts_(d);
@@ -353,9 +353,16 @@ function synthesiseAbsences_(log) {
  * Which rules were in force, plus a derived check on the dedicated-substitute
  * ones: of the periods belonging to that team, how many the named teacher
  * actually took. Derived from the log — no per-assignment column needed.
+ *
+ * Also derives the free-period guard's daily cost: for each working day of
+ * the reported week, how many pool members the guard caps at 0 substitutions
+ * — computed straight from the timetable and the rule (RFC-001 §7 / PRD N5),
+ * never from a log column. `pool` and `days` are optional; without either
+ * (source workbook unreachable, or no span) the guard figure is simply
+ * omitted, same as every other source-dependent section of the report.
  */
-function buildRulesSummary_(log, meta) {
-  var out = { active: [], problems: [], dedicated: [] };
+function buildRulesSummary_(log, meta, pool, days) {
+  var out = { active: [], problems: [], dedicated: [], guard: null };
   var ctx;
   try { ctx = buildRuleContext_(); } catch (e) { return out; }
   out.active = ctx.active || [];
@@ -382,6 +389,21 @@ function buildRulesSummary_(log, meta) {
       });
     }
   }
+
+  if (ctx.freeGuards.length && pool && pool.members.length && days && days.length) {
+    try {
+      var min = Infinity, max = -Infinity;
+      days.forEach(function (day) {
+        var n = 0;
+        pool.members.forEach(function (m) {
+          if (freeGuardCap_(ctx, m.teacher, day.dayIndex, { team: m.team }) === 0) n++;
+        });
+        min = Math.min(min, n); max = Math.max(max, n);
+      });
+      if (min !== Infinity) out.guard = { min: min, max: max };
+    } catch (e) { /* degrade quietly — same policy as the rest of this section */ }
+  }
+
   return out;
 }
 

@@ -538,13 +538,22 @@ function rulesPanel_(d) {
       + '</td></tr>';
   }).join('');
 
+  var guard = '';
+  if (r.guard) {
+    var g = r.guard;
+    var count = g.min === g.max ? (g.min + ' teacher' + (g.min === 1 ? '' : 's'))
+                                 : (g.min + '–' + g.max + ' teachers');
+    guard = '<tr><td class="td sm nm" width="45%">Free-period guard</td>'
+      + '<td class="td sm mut">' + count + ' held back per day</td></tr>';
+  }
+
   var problems = r.problems.length
     ? '<div class="sm" style="color:' + RC.rose + ';margin-top:6px">⚠️ ' + r.problems.length
       + ' rule(s) were skipped as unusable. Run ⚖️ Check rules.</div>'
     : '';
 
   return miniCard_('Substitution rules in force',
-    '<table>' + rows + held + '</table>' + problems);
+    '<table>' + rows + held + guard + '</table>' + problems);
 }
 
 /* ───────── signature ───────── */
