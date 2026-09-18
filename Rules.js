@@ -407,6 +407,12 @@ function checkRules() {
   var all = readRules_(), lines = [], warn = 0;
   if (!all.length) lines.push('No rules defined yet — the system uses its normal logic.');
 
+  // Hoisted so every FREE_PERIOD_GUARD row's pool-impact estimate shares the same
+  // memoised freeByTeacher cache (freeCountByTeacher_ keys off it) — otherwise each
+  // rule × day combination would re-scan the whole timetable. buildRuleContext_ is
+  // itself memoised per execution, so calling it here costs nothing extra.
+  var ctx = buildRuleContext_();
+
   for (var i = 0; i < all.length; i++) {
     var r = all[i], issues = [];
     if (r.type.id === 'DEDICATED_SUB') {
@@ -448,7 +454,7 @@ function checkRules() {
             var poolTotal = poolG.members.length;
             var worstCount = 0, worstDay = '';
             for (var gd = 0; gd < cfgG.days.length; gd++) {
-              var freeG = freeCountByTeacher_({ freeByTeacher: {} }, gd);
+              var freeG = freeCountByTeacher_(ctx, gd);
               var capped = 0;
               for (var gm = 0; gm < poolG.members.length; gm++) {
                 var mem = poolG.members[gm];
@@ -478,7 +484,6 @@ function checkRules() {
     issues.forEach(function (x) { lines.push('        ⚠️ ' + x); });
   }
 
-  var ctx = buildRuleContext_();
   ctx.problems.forEach(function (p) { lines.push('⚠️ Row ' + p.row + ': ' + p.text); warn += 1; });
 
   ui.alert('⚖️ Rule check',
