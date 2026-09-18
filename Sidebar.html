@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    :root{
+      --ink:#1F2933; --subtle:#7B8794; --hair:#E4E7EB; --paper:#F7F8FA;
+      --indigo:#4C5FD5; --indigo50:#EEF0FB; --teal:#0E9F8E; --teal50:#E3F5F2;
+      --rose:#E2566B; --rose50:#FBE7EB; --green:#2FA36B; --green50:#E5F4EC;
+      --amber:#E8A33D; --amber50:#FBF1DF; --violet:#8B5CF6;
+    }
+    *{box-sizing:border-box}
+    body{font-family:'Inter','Google Sans',Roboto,Arial,sans-serif;margin:0;color:var(--ink);font-size:13px;background:#fff}
+    .wrap{padding:14px 14px 28px}
+    .head{background:linear-gradient(135deg,#4C5FD5,#6D7CE4);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:14px}
+    .head .school{font-size:11px;letter-spacing:.5px;text-transform:uppercase;opacity:.85}
+    .head .title{font-size:18px;font-weight:700;margin-top:2px}
+    .head .term{font-size:12px;opacity:.9;margin-top:1px}
+    .step{margin-bottom:14px}
+    .label{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--subtle);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+    .num{display:inline-flex;width:18px;height:18px;border-radius:50%;background:var(--indigo);color:#fff;align-items:center;justify-content:center;font-size:11px}
+    input[type=date],input.search{width:100%;padding:10px 12px;border:1px solid var(--hair);border-radius:10px;font-size:13px;font-family:inherit;color:var(--ink);outline:none;transition:.15s}
+    input:focus{border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo50)}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .chip{display:inline-flex;align-items:center;gap:6px;background:var(--indigo50);color:var(--indigo);border-radius:20px;padding:5px 8px 5px 12px;font-size:12px;font-weight:600}
+    .chip b{font-weight:600}
+    .chip .x{cursor:pointer;width:16px;height:16px;border-radius:50%;background:rgba(76,95,213,.18);display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+    .chip .x:hover{background:var(--rose);color:#fff}
+    .dd{position:relative}
+    .menu{position:absolute;z-index:10;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--hair);border-radius:10px;box-shadow:0 10px 30px rgba(31,41,51,.12);max-height:220px;overflow:auto;display:none}
+    .menu.open{display:block}
+    .opt{padding:9px 12px;cursor:pointer;font-size:13px}
+    .opt:hover,.opt.active{background:var(--indigo50)}
+    .opt small{color:var(--subtle)}
+    select{width:100%;padding:10px 12px;border:1px solid var(--hair);border-radius:10px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff;outline:none;transition:.15s}
+    select:focus{border-color:var(--indigo);box-shadow:0 0 0 3px var(--indigo50)}
+    .periods{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .pbtn{border:1px solid var(--hair);background:#fff;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:600;cursor:pointer;color:var(--subtle)}
+    .pbtn.on{background:var(--indigo);color:#fff;border-color:var(--indigo)}
+    .reassign{color:var(--violet);font-weight:600}
+    .btn{width:100%;border:none;border-radius:11px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px}
+    .btn:disabled{opacity:.5;cursor:default}
+    .btn.primary{background:var(--indigo);color:#fff}
+    .btn.primary:hover:not(:disabled){background:#3f51c4}
+    .btn.go{background:var(--green);color:#fff;margin-top:8px}
+    .btn.go:hover:not(:disabled){background:#268a59}
+    .btn.ghost{background:#fff;color:var(--subtle);border:1px solid var(--hair);margin-top:8px;font-weight:600;font-size:12px;padding:9px}
+    .btn.ghost:hover{border-color:var(--rose);color:var(--rose)}
+    .muted{color:var(--subtle);font-size:12px}
+    .summary{display:flex;gap:8px;margin:12px 0}
+    .pill{flex:1;border-radius:11px;padding:10px;text-align:center}
+    .pill .n{font-size:22px;font-weight:800;line-height:1}
+    .pill .t{font-size:10px;text-transform:uppercase;letter-spacing:.4px;margin-top:3px}
+    .pill.ok{background:var(--green50);color:var(--green)}
+    .pill.bad{background:var(--rose50);color:var(--rose)}
+    .pill.neutral{background:var(--indigo50);color:var(--indigo)}
+    .group{border:1px solid var(--hair);border-radius:12px;overflow:hidden;margin-bottom:10px}
+    .group .gh{background:var(--paper);padding:8px 12px;font-weight:700;font-size:12px;display:flex;justify-content:space-between}
+    .row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--hair)}
+    .pchip{background:var(--ink);color:#fff;border-radius:7px;font-size:11px;font-weight:700;padding:3px 7px;min-width:30px;text-align:center}
+    .rmeta{flex:1;min-width:0}
+    .rmeta .cls{font-weight:600}
+    .rmeta .sub{color:var(--subtle);font-size:11px}
+    .why{color:var(--indigo);font-size:10px;margin-top:2px}
+    .rules{background:var(--indigo50);color:var(--indigo);border-radius:9px;padding:7px 10px;font-size:11px;margin-bottom:10px}
+    .sub-to{font-weight:700;color:var(--green);font-size:12px;text-align:right;white-space:nowrap}
+    .sub-to.none{color:var(--rose)}
+    .channels{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+    .badge{font-size:10px;border-radius:20px;padding:4px 9px;font-weight:600;background:var(--paper);color:var(--subtle);border:1px solid var(--hair)}
+    .badge.on{background:var(--teal50);color:var(--teal);border-color:transparent}
+    .note{background:var(--amber50);color:#9a6b1c;border-radius:10px;padding:9px 12px;font-size:12px;margin-bottom:12px}
+    .note.err{background:var(--rose50);color:var(--rose)}
+    .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.5);border-top-color:#fff;border-radius:50%;animation:s .7s linear infinite}
+    @keyframes s{to{transform:rotate(360deg)}}
+    .hide{display:none}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="school" id="school">Loading…</div>
+    <div class="title">Mark an Absence</div>
+    <div class="term" id="term"></div>
+  </div>
+
+  <div id="srcErr" class="note err hide"></div>
+
+  <div class="step">
+    <div class="label"><span class="num">1</span> Date</div>
+    <input type="date" id="date">
+  </div>
+
+  <div class="step">
+    <div class="label"><span class="num">2</span> Absent teacher(s)</div>
+    <div class="dd">
+      <input class="search" id="search" placeholder="Search teacher name…" autocomplete="off">
+      <div class="menu" id="menu"></div>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <div class="step">
+    <div class="label"><span class="num">3</span> Absence type</div>
+    <select id="absenceType" onchange="onScopeChange()"></select>
+    <div id="periodPicker" class="periods hide"></div>
+  </div>
+
+  <button class="btn primary" id="previewBtn" onclick="preview()">
+    <span id="previewLbl">Preview plan</span>
+  </button>
+
+  <div id="result" class="hide"></div>
+  <div id="channels" class="channels"></div>
+</div>
+
+<script>
+  var TEACHERS = [], SELECTED = [], LAST_PLAN = null, CHANNELS = {};
+  var TYPES = [], SCOPE = '', PERIODS = [], NPERIODS = 8, FIRST_PM = 5;
+
+  function $(id){return document.getElementById(id);}
+
+  google.script.run.withSuccessHandler(boot).withFailureHandler(function(e){
+    $('srcErr').className='note err'; $('srcErr').textContent=e.message;
+  }).uiBootstrap();
+
+  function boot(b){
+    $('school').textContent = b.schoolName || '';
+    $('term').textContent = b.termLabel || '';
+    $('date').value = b.today;
+    TEACHERS = b.teachers || [];
+    CHANNELS = b.channels || {};
+    NPERIODS = b.periods || 8; FIRST_PM = b.firstAfternoon || Math.ceil(NPERIODS/2)+1;
+    TYPES = b.absenceTypes || [];
+    buildTypeSelect();
+    buildPeriodPicker();
+    if(b.sourceErr){ $('srcErr').className='note err'; $('srcErr').textContent='⚠️ '+b.sourceErr; }
+    renderChannels();
+  }
+
+  // Options come from ABSENCE_TYPES on the server, grouped by category, so the
+  // panel and the Mark Absence tab can never drift apart.
+  function buildTypeSelect(){
+    var sel = $('absenceType'); sel.innerHTML = '';
+    var groups = {}, order = [];
+    TYPES.forEach(function(t){
+      if(!groups[t.category]){ groups[t.category] = []; order.push(t.category); }
+      groups[t.category].push(t);
+    });
+    var groupName = { 'Leave':'Leave', 'Permission':'Permission', 'OD':'OD — on official duty' };
+    order.forEach(function(cat){
+      var g = document.createElement('optgroup');
+      g.label = groupName[cat] || cat;
+      groups[cat].forEach(function(t){
+        var o = document.createElement('option');
+        o.value = t.id;
+        o.textContent = shortLabel(t);
+        g.appendChild(o);
+      });
+      sel.appendChild(g);
+    });
+    SCOPE = TYPES.length ? TYPES[0].id : '';
+    sel.value = SCOPE;
+    onScopeChange();
+  }
+
+  // Inside a group the category prefix is redundant; spell out the window instead.
+  function shortLabel(t){
+    var base = t.label.indexOf(' - ') > -1 ? t.label.split(' - ')[1] : t.label;
+    if(t.window === 'AM') return base + ' (P1–P' + (FIRST_PM-1) + ')';
+    if(t.window === 'PM') return base + ' (P' + FIRST_PM + '–P' + NPERIODS + ')';
+    if(t.window === 'PERIODS') return base + ' (pick periods)';
+    return base;
+  }
+
+  function typeById(id){
+    for(var i=0;i<TYPES.length;i++) if(TYPES[i].id===id) return TYPES[i];
+    return null;
+  }
+
+  function buildPeriodPicker(){
+    var box=$('periodPicker'); box.innerHTML='';
+    for(var p=1;p<=NPERIODS;p++){
+      (function(n){
+        var b=document.createElement('div'); b.className='pbtn'; b.textContent='P'+n;
+        b.onclick=function(){ var i=PERIODS.indexOf(n); if(i>=0)PERIODS.splice(i,1); else PERIODS.push(n); b.classList.toggle('on'); };
+        box.appendChild(b);
+      })(p);
+    }
+  }
+
+  function onScopeChange(){
+    SCOPE=$('absenceType').value;
+    var t = typeById(SCOPE);
+    $('periodPicker').classList.toggle('hide', !t || t.window!=='PERIODS');
+  }
+
+  function renderChannels(){
+    var c=$('channels'); c.innerHTML='';
+    var defs=[['Chat card',CHANNELS.chat],['Email',CHANNELS.email],['Direct message',CHANNELS.dm]];
+    defs.forEach(function(d){
+      var s=document.createElement('span');
+      s.className='badge'+(d[1]?' on':'');
+      s.textContent=(d[1]?'● ':'○ ')+d[0];
+      c.appendChild(s);
+    });
+  }
+
+  // ── teacher search dropdown ──
+  var search=$('search'), menu=$('menu');
+  search.addEventListener('input',renderMenu);
+  search.addEventListener('focus',renderMenu);
+  document.addEventListener('click',function(e){ if(!e.target.closest('.dd')) menu.classList.remove('open'); });
+
+  function renderMenu(){
+    var q=search.value.trim().toLowerCase();
+    var matches=TEACHERS.filter(function(t){
+      return SELECTED.indexOf(t)===-1 && (!q || t.toLowerCase().indexOf(q)>-1);
+    }).slice(0,40);
+    menu.innerHTML='';
+    if(!matches.length){ menu.classList.remove('open'); return; }
+    matches.forEach(function(t){
+      var d=document.createElement('div'); d.className='opt'; d.textContent=t;
+      d.onclick=function(){ addTeacher(t); };
+      menu.appendChild(d);
+    });
+    menu.classList.add('open');
+  }
+
+  function addTeacher(t){
+    if(SELECTED.indexOf(t)===-1) SELECTED.push(t);
+    search.value=''; menu.classList.remove('open'); renderChips(); search.focus();
+  }
+  function removeTeacher(t){ SELECTED=SELECTED.filter(function(x){return x!==t;}); renderChips(); }
+
+  function renderChips(){
+    var c=$('chips'); c.innerHTML='';
+    SELECTED.forEach(function(t){
+      var el=document.createElement('span'); el.className='chip';
+      el.innerHTML='<b></b><span class="x">✕</span>';
+      el.querySelector('b').textContent=t;
+      el.querySelector('.x').onclick=function(){removeTeacher(t);};
+      c.appendChild(el);
+    });
+  }
+
+  // ── preview ──
+  function needsPeriods(){ var t=typeById(SCOPE); return !!t && t.window==='PERIODS'; }
+  function scopePeriods(){ return needsPeriods() ? PERIODS.slice() : null; }
+
+  function preview(){
+    if(!SELECTED.length){ flash('Pick at least one absent teacher.'); return; }
+    if(needsPeriods() && !PERIODS.length){
+      flash('Pick the period(s) for ' + (typeById(SCOPE)||{}).label + '.'); return; }
+    setBusy('previewBtn','previewLbl','Computing…',true);
+    google.script.run.withSuccessHandler(function(plan){
+      setBusy('previewBtn','previewLbl','Preview plan',false);
+      if(!plan.ok){ flash(plan.error); $('result').className='hide'; return; }
+      LAST_PLAN=plan; renderPlan(plan);
+    }).withFailureHandler(function(e){
+      setBusy('previewBtn','previewLbl','Preview plan',false); flash(e.message);
+    }).uiPreview($('date').value, SELECTED, SCOPE, scopePeriods());
+  }
+
+  function rowHtml(x, isReassign){
+    var ok=x.status==='ASSIGNED';
+    var extra = isReassign ? ' · for '+esc(x.absent)+(x.previousSub?' (was '+esc(x.previousSub)+')':'') : '';
+    var why = x.reason ? '<div class="why">'+esc(x.reason)+'</div>' : '';
+    return '<div class="row"><span class="pchip">P'+x.period+'</span>'
+      +'<div class="rmeta"><div class="cls">'+esc(x.classSec)+'</div><div class="sub">'+esc(x.subject)+extra+'</div>'+why+'</div>'
+      +'<div class="sub-to'+(ok?'':' none')+'">'+(ok?'→ '+esc(x.substitute):'⚠️ none free')+'</div></div>';
+  }
+
+  function renderPlan(plan){
+    var s=plan.summary, h='';
+    h+='<div class="summary">'
+      +'<div class="pill '+(s.assigned?'ok':'neutral')+'"><div class="n">'+s.assigned+'</div><div class="t">Assigned</div></div>'
+      +'<div class="pill '+(s.unassigned?'bad':'neutral')+'"><div class="n">'+s.unassigned+'</div><div class="t">Unassigned</div></div>'
+      +'<div class="pill neutral"><div class="n">'+plan.absentTeachers.length+'</div><div class="t">Absent</div></div>'
+      +'</div>';
+    h+='<div class="muted" style="margin-bottom:10px">'+plan.prettyDate+' &middot; '+plan.day+' &middot; week '+plan.weekKey+'</div>';
+    if(plan.rules && plan.rules.length){
+      h+='<div class="rules"><b>Rules applied:</b> '
+        +plan.rules.map(function(r){return esc(r.label)+' ('+esc(r.detail)+')';}).join(' &middot; ')+'</div>';
+    }
+    if(plan.ruleProblems && plan.ruleProblems.length){
+      h+='<div class="note err">⚠️ '+plan.ruleProblems.length+' rule(s) skipped — run ⚖️ Check rules.</div>';
+    }
+
+    plan.absentTeachers.forEach(function(absent){
+      var rows=plan.assignments.filter(function(x){return x.absent===absent && !x.reassigned;})
+        .sort(function(a,b){return a.period-b.period;});
+      h+='<div class="group"><div class="gh"><span>'+esc(absent)+'</span><span class="muted">'+rows.length+' periods</span></div>';
+      if(!rows.length){ h+='<div class="row muted" style="padding:12px">No teaching periods in this window.</div>'; }
+      rows.forEach(function(x){ h+=rowHtml(x); });
+      h+='</div>';
+    });
+
+    var reassigned=plan.assignments.filter(function(x){return x.reassigned;})
+      .sort(function(a,b){return a.period-b.period;});
+    if(reassigned.length){
+      h+='<div class="group"><div class="gh"><span class="reassign">↻ Re-assigned cover</span>'
+        +'<span class="muted">freed by today’s leave</span></div>';
+      reassigned.forEach(function(x){ h+=rowHtml(x, true); });
+      h+='</div>';
+    }
+
+    h+='<button class="btn go" id="goBtn" onclick="commit()"><span id="goLbl">Assign &amp; notify</span></button>';
+    h+='<button class="btn ghost" onclick="clearDate()">Clear this date’s saved assignments</button>';
+    var r=$('result'); r.className=''; r.innerHTML=h;
+  }
+
+  function commit(){
+    setBusy('goBtn','goLbl','Saving & sending…',true);
+    google.script.run.withSuccessHandler(function(out){
+      if(!out.ok){ setBusy('goBtn','goLbl','Assign &amp; notify',false); flash(out.error); return; }
+      var msg='✅ Saved · '+out.assigned+' assigned'
+        +(out.unassigned?' · '+out.unassigned+' unassigned':'')
+        +(out.reassigned?' · '+out.reassigned+' re-assigned':'')
+        +(out.notified?' · notified the space':' · (no channel sent)');
+      if(out.notifyError) msg+=' · ⚠️ '+out.notifyError;
+      var r=$('result');
+      r.insertAdjacentHTML('afterbegin','<div class="note" style="background:var(--green50);color:var(--green)">'+esc(msg)+'</div>');
+      var b=$('goBtn'); b.textContent='Done ✓'; b.disabled=true;
+    }).withFailureHandler(function(e){
+      setBusy('goBtn','goLbl','Assign &amp; notify',false); flash(e.message);
+    }).uiCommit($('date').value, SELECTED, SCOPE, scopePeriods());
+  }
+
+  function clearDate(){
+    google.script.run.withSuccessHandler(function(out){
+      flash('Removed '+out.removed+' saved row(s) for this date.', true);
+    }).uiClearDate($('date').value);
+  }
+
+  // ── utils ──
+  function setBusy(btnId,lblId,txt,busy){
+    var b=$(btnId); if(!b) return; b.disabled=busy;
+    $(lblId).innerHTML = busy ? '<span class="spin"></span> '+txt : txt;
+  }
+  function flash(msg,good){
+    var n=$('srcErr'); n.className='note'+(good?'':' err'); n.textContent=(good?'':'⚠️ ')+msg;
+    n.classList.remove('hide'); setTimeout(function(){ n.classList.add('hide'); },4000);
+  }
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+</script>
+</body>
+</html>

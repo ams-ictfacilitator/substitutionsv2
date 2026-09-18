@@ -1,0 +1,9 @@
+# clasp auth — never commit
+.clasprc.json
+# local clasp binding (script id); copy .clasp.json.example and fill in
+.clasp.json
+
+.DS_Store
+node_modules/
+*.log
+_scratch/
