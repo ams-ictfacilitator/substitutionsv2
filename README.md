@@ -330,20 +330,23 @@ count, so the lower one wins. Full rationale and the compilation/engine details 
 
 ### 6.7 Performance
 
-Measured on a 60-teacher, 40-class, 8-period estate with 1,530 log rows:
+Measured on a 60-teacher, 40-class, 8-period estate with 1,530 log rows, 6 teachers
+absent:
 
 | | ms per plan |
 |---|---:|
-| no rules | 2.1 |
-| dedicated + floor limit | 2.2 |
-| + block affinity | 3.6 |
-| **15 rules** | **3.4** |
+| no rules | 2.06 |
+| free-period guard only | 2.68 |
+| dedicated + floor + block affinity | 3.47 |
+| all four rule types | 3.81 |
+| **15 rules** | **3.78** |
 
-Rule *count* is free — 15 rules cost the same as 3, because compilation is O(rules) once
-and the loop is O(1) per effect. Essentially all the overhead is the single timetable
-pass that derives home blocks, and it only runs when a block-affinity rule is active.
-Scaling with absentees stays gentle: 30 absentees / 91 slots ≈ 6.3 ms. The real cost of
-a plan remains the sheet reads, to which rules add two, both cached.
+Rule *count* is free — 15 rules cost no more than 4, because compilation is O(rules)
+once and the loop is O(1) per effect. Almost all the overhead is two single passes over
+the timetable: one deriving home blocks, one counting free periods. Both are lazy, so a
+workbook pays for a pass only when a rule that needs it is active. Scaling with absentees
+stays gentle: 30 absentees / 91 slots ≈ 6.3 ms. The real cost of a plan remains the sheet
+reads, to which rules add two, both cached.
 
 ### 6.8 Cascading re-assignment
 
