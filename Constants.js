@@ -207,6 +207,15 @@ const RULE_TYPES = [
     hint: 'A preference, not a limit: it competes with fairness rather than overriding it. '
         + 'A teacher\'s home block is worked out from where they already teach most.',
   },
+  {
+    id: 'FREE_PERIOD_GUARD',
+    label: 'Protect teachers with few free periods',
+    who:  'All  (or a team name, or one teacher name)',
+    then: 'Ladder of free periods : maximum substitutions, e.g. 1:0, 2:1',
+    hint: 'A hard limit, like a floor limit. Free periods are counted from the timetable '
+        + 'and duty roster for the day, not from cover already given out. A count left off '
+        + 'the ladder is unconstrained.',
+  },
 ];
 
 const DEFAULT_BLOCK_BONUS = 1.5;
