@@ -45,6 +45,10 @@ state lives in its own workbook, in the `🗂️ Log` tab.
 | `ReportData.js` | 360 | Weekly report analytics — aggregates a week into one model |
 | `ReportRender.js` | 400 | Weekly report HTML — light, table-based, A4, print-ready |
 | `Reports.js` | 340 | Report orchestration: Drive folder, PDF, Reports tab, Chat card, trigger |
+| `AnalyticsData.js` | 381 | `buildAnalytics()` — one pass over the whole log → one analytics model (§14) |
+| `AnalyticsRender.js` | 409 | Analytics HTML → filed PDF, reusing `ReportRender.js`'s chrome |
+| `Analytics.js` | 130 | Analytics orchestration: preview, build → PDF → Drive → 📄 Reports |
+| `AnalyticsTab.js` | 216 | Renders the live `🔎 Analytics` tab from the same model |
 | `Chat.js` | 253 | Chat card, email, DM channels |
 | `HR.js` | 56 | Teacher name → email / Chat ID from the `👥 importHR` tab |
 | `HRDirectory.js` | 104 | Pull Chat IDs from People API (self) or Admin SDK (everyone) |
@@ -160,7 +164,8 @@ Built idempotently by `setupAllTabs()` in the order below.
 | `📊 Fairness` | `renderFairness_()` | KPI strip + per-teacher load vs fair share, with text bars. Regenerated on every commit. |
 | `🗂️ Log` | `writeLogTab_()` | **Source of truth for cover.** Row 1 title, row 2 headers, data from row 3. |
 | `🗓️ Absence Register` | `writeLeaveRegisterTab_()` | **Source of truth for leave.** One row per teacher-day, including absences that needed no cover. |
-| `📄 Reports` | `writeReportsTab_()` | Index of generated weekly reports, newest first, each linking to its PDF. |
+| `📄 Reports` | `writeReportsTab_()` | Index of generated weekly reports, newest first, each linking to its PDF. Also indexes the analytics PDF (§14). |
+| `🔎 Analytics` | `renderAnalyticsTab_()` | Live analytics over the whole log (§14). Rebuilt on demand only, never on a trigger. |
 | `👥 importHR` | `writeImportHrTab_()` | Name / Email / Chat ID. Row 1 title, row 2 headers, data from row 3. |
 | `📖 Help` | `writeHelpTab_()` | Nine prose blocks for coordinators. |
 
@@ -555,7 +560,7 @@ you cannot DM yourself this way.
 row 3). Keys are lowercased with runs of whitespace collapsed.
 
 `hrLookup_()` tries an exact key, then falls back to a **prefix match in either
-direction** (`k.startsWith(key) || key.startsWith(k)`). See §14 — this is loose enough
+direction** (`k.startsWith(key) || key.startsWith(k)`). See §15 — this is loose enough
 to mis-route.
 
 Two ways to populate the tab (`HRDirectory.js`):
@@ -763,11 +768,132 @@ failure to `notifyOpsFailure_()`, which posts to the Chat space.
 
 ---
 
-## 14. Known issues, gotchas & tech debt
+## 14. Substitution analytics
+
+### 14.1 Why this exists
+
+Two complaints reached leadership and neither could be answered with evidence:
+
+1. "Some teachers never get substitutions."
+2. "Some teachers get the same class, in the same period, on the same weekday, over and
+   over."
+
+The weekly report (§13) answers *what happened this week*. Neither complaint is a weekly
+question — both are about the shape of the whole history, and the `🗂️ Log` has always
+recorded everything needed to settle them, it just had never been asked. PRD §10 and
+RFC-002 record the decision behind this feature: **measure first**, so any fix is chosen
+against evidence rather than intuition. See RFC-002 for the full metric definitions —
+this section explains what the two outputs are and how to read them, not the formulas.
+
+### 14.2 One engine, two presentations
+
+```
+AnalyticsData.js   buildAnalytics()      pure — one pass over the whole 🗂️ Log → one model
+      ├── AnalyticsRender.js             model → printable HTML → PDF → Drive → 📄 Reports
+      └── AnalyticsTab.js                model → the live 🔎 Analytics tab
+```
+
+`Analytics.js` is the thin orchestration layer over the pair — preview on screen, or
+build → render → file, mirroring `Reports.js`'s weekly pipeline (§13.1) but over all
+history and keyed by a pseudo week (`ANALYTICS`) so regenerating replaces the same row and
+file rather than piling up duplicates.
+
+Neither presentation computes anything of its own. Every figure — equity, variety,
+cross-tabs, class-side view, gaps — is built once in `buildAnalytics()` and both the PDF
+and the tab only display it. This is deliberate, not incidental: since both read the same
+model, the PDF that gets filed and the tab a coordinator is looking at **cannot disagree**.
+If a figure looks wrong, the bug is in `AnalyticsData.js`, never in one presentation only.
+
+### 14.3 The three populations
+
+The single most important thing to get right when reading this report is that "how much
+cover has this person done" is not one question — it is three, and answering the wrong
+one sends the fix to the wrong place (PRD §10.3, RFC-002 §3):
+
+| Population | Meaning | Where the fix lies |
+|---|---|---|
+| In the pool, never called | has a `Substitution` allotment row, zero duties recorded | the engine, or their availability |
+| In the pool, far below share | has duties, but well under their weighted fair share | the engine |
+| Not in the pool at all | **no** `Substitution` allotment row, weight 0 | the Allotment, not the engine |
+
+The third row is the one to hold onto. A teacher with no `Substitution` row in the
+Allotment has a weight of 0, and weight 0 means **zero duties by design** — the pool
+(`Pool.js`, §6.1) never draws from anyone it doesn't know has a weight. That teacher is
+not being skipped by a bug, and no code change makes it fairer. If someone in this group
+is the one who complained "I never get substitutions", the remedy is a row in the
+Allotment giving them a `Substitution` weight, not a change to `Assign.js`. Both the PDF
+and the `🔎 Analytics` tab report this cohort separately and label it accordingly
+precisely so it is never mistaken for an engine problem.
+
+### 14.4 Reading the variety score and the Gini coefficient
+
+Two scores appear throughout the report and neither means anything without a scale to
+read it against.
+
+**Variety score** (0–1, per teacher) answers the second complaint directly: how spread
+out a teacher's duties are across classes, periods and weekdays, normalised against what
+was actually available school-wide (RFC-002 §4.1) — so someone with only three duties can
+still score 1.0 if those three landed in three different classes.
+
+| Value | Reading |
+|---|---:|
+| 1.0 | duties spread as widely as what was actually available |
+| toward 0 | duties concentrated in the same slot — the "again and again" complaint |
+| `—` | not 0 — see below |
+
+A teacher called only once has no variety to measure: one duty cannot be "spread out" or
+"concentrated". The model returns `null` for that case (RFC-002 §4.1) and both
+presentations render it as an em dash, `—`, never as `0`. Showing 0 would read as "this
+teacher's cover is entirely repetitive", which is not something a single data point can
+support and would defame someone who was simply called once.
+
+**Gini coefficient** (0–1, one number for the whole pool) answers the first complaint at
+the population level: how evenly load is spread across the pool relative to each
+teacher's allotment weight.
+
+| Band | Value | Reading |
+|---|---:|---|
+| Even | ≤ 0.20 | everyone is carrying close to their weighted share |
+| Moderate | ≤ 0.40 | some concentration, worth a look |
+| Uneven | > 0.40 | load is concentrated on a few people |
+
+0 means every teacher carries exactly their weighted share; 1 would mean one teacher
+carries everything. Both the PDF and the tab report the number to two decimals alongside
+its band, so nobody has to memorise the thresholds to read a headline figure.
+
+### 14.5 Repetition is a known, unfixed structural property
+
+The fairness engine (§6.3) scores duties by **how many** a teacher has, never **which**
+ones. A teacher who is the only one free in a recurring slot — same class, same period,
+same weekday — will keep being chosen for it, because from the engine's point of view she
+is simply below her share; there is no memory of "you already did this slot". PRD §10.2
+records this as the probable structural cause of the second complaint.
+
+**This has been measured, not changed.** T-005–T-008 are diagnostic only, by decision —
+the analytics report exists to show whether repetition is concentrated on a few people or
+endemic across the pool, so that if the assignment engine is changed later, it is changed
+against evidence. Nothing in `Assign.js` was touched to build this feature, and reading
+this section should not leave the impression that the repetition complaint has been
+resolved — it has been measured and left exactly as it was.
+
+### 14.6 Where to find it
+
+| Output | Menu / location | Cadence |
+|---|---|---|
+| Filed PDF | `🔁 Substitutions` menu → generate, saved to the same Drive reports folder as the weekly report (§13.2), indexed in `📄 Reports` | on demand |
+| `🔎 Analytics` tab | rebuilt from the menu | on demand only — never on a trigger |
+
+Full metric definitions, formulas and the cross-tabulations both outputs share live in
+[`docs/rfc/RFC-002-substitution-analytics.md`](docs/rfc/RFC-002-substitution-analytics.md);
+this section is deliberately a plain-language companion to it, not a restatement.
+
+---
+
+## 15. Known issues, gotchas & tech debt
 
 Ordered roughly by how likely they are to bite.
 
-### 14.1 ~~The Log tab is capped at ~198 data rows~~ — FIXED
+### 15.1 ~~The Log tab is capped at ~198 data rows~~ — FIXED
 `writeLogTab_()` used to end with `trimColumns_()`, which also trimmed the sheet to 200
 rows; `appendToLog_()` writes at `getLastRow() + 1`, so once that passed 200 the range
 went out of bounds and the commit threw — *after* notifications had already gone out.
@@ -778,18 +904,18 @@ to grow the grid first. `trimColumns_()` is retained for fixed-size layout tabs 
 **An existing sheet still carries the old 200-row cap** until `🛠️ Build / rebuild all
 tabs` is run — but `ensureRows_()` now grows it on the next write regardless.
 
-### 14.2 No `LockService` anywhere
+### 15.2 No `LockService` anywhere
 Two coordinators committing at the same moment can interleave: both read the same log
 snapshot, both compute against stale usage, both delete-and-append. Result: double
 bookings or lost rows. `commitPlan()` is the natural place for a script lock.
 
-### 14.3 `hrLookup_()` prefix matching can mis-route email and DMs
+### 15.3 `hrLookup_()` prefix matching can mis-route email and DMs
 The fallback matches in both directions, so a short directory name is a prefix of many
 allotment names (and vice versa). `"Anita"` will match whichever of `"Anita Mary"` /
 `"Anita Sharma"` the object happens to iterate first. Since this decides who receives
 a duty email or DM, it should be tightened to exact + explicit alias mapping.
 
-### 14.4 Row-at-a-time Sheets I/O — partly addressed
+### 15.4 Row-at-a-time Sheets I/O — partly addressed
 `removeForCommit_()` and `clearLogForDate_()` now use `deleteRowsBatched_()`, which
 collapses consecutive rows into single `deleteRows()` calls, and the Absence Register
 styles a whole run with one `setBackgrounds`/`setFontColors` pair. Still per-row:
@@ -797,25 +923,25 @@ styles a whole run with one `setBackgrounds`/`setFontColors` pair. Still per-row
 - `zebra_()` in `Dashboard.js` styles one row at a time
 - `populateHrFromDirectory()` styles each imported row individually
 
-### 14.5 `refreshDashboards_()` fully re-renders two tabs on every commit
+### 15.5 `refreshDashboards_()` fully re-renders two tabs on every commit
 Each call does `sheet.clear()` plus a full rebuild of `🔁 Substitution Pool` and
 `📊 Fairness`, and re-reads the whole log. Fine at today's scale, wasteful as the log
 grows.
 
-### 14.6 Config keys parsed but never consumed
+### 15.6 Config keys parsed but never consumed
 `academicYear`, `breaksAfter`, `weekStartsOn`, `hrUrl`, `coordinators`. Either wire
 them up or drop the rows so the Config tab stops promising behaviour that does not
 exist. `Week Starts On` is the misleading one — weeks are hardcoded ISO/Monday.
 
-### 14.7 Adding a Config key below `TEAM COORDINATORS` silently breaks it
+### 15.7 Adding a Config key below `TEAM COORDINATORS` silently breaks it
 See §8. The coordinator section only ends on a fully blank row.
 
-### 14.8 Timetable and Duties layouts are hardcoded
+### 15.8 Timetable and Duties layouts are hardcoded
 The `Col:` config keys cover the Allotment only. Class/Section at indices 1 and 2 and
 the day-major period stride are baked into `DataSource.js`. A layout change in the
 main system means a code change here.
 
-### 14.9 `setupAllTabs()` destroys entered data — GUARDED
+### 15.9 `setupAllTabs()` destroys entered data — GUARDED
 Still destructive by design: every `write*Tab_()` opens with `sheet.clear()`. What
 changed is that it can no longer happen by accident.
 
@@ -832,24 +958,24 @@ changed is that it can no longer happen by accident.
 The underlying `write*Tab_()` functions are still clear-and-rebuild; a genuine
 read-preserve-rewrite for the Config tab remains worth doing.
 
-### 14.10 No Ops Alerts escalation — partly addressed
+### 15.10 No Ops Alerts escalation — partly addressed
 `notifyOpsFailure_()` posts to the Chat space, but only the weekly-report trigger calls
 it. Still silent: `refreshDashboards_`, `dmSubstitutes_`, `emailSubstitutes_`,
 `ensureLeaveTrigger_` — all still `Logger.log()` and swallow. A broken DM channel
 remains invisible. Wiring the existing helper into those paths is the obvious next step.
 
-### 14.11 Retry / backoff missing on external calls
+### 15.11 Retry / backoff missing on external calls
 `postChatCard_()` fetches once and throws on non-2xx. No backoff, no deterministic
 fallback.
 
-### 14.12 Advanced services are easy to lose
+### 15.12 Advanced services are easy to lose
 `enabledAdvancedServices` in `appsscript.json` is authoritative and `clasp push`
 replaces the file wholesale. Anything added through the editor's Services panel
 survives only until the next push. The three services this project needs
 (`Chat`, `People`, `AdminDirectory`) are now declared locally; any future one must be
 added there too, not in the editor.
 
-### 14.13 Minor
+### 15.13 Minor
 - `dayUsageByTeacher()` and `titleCase_()` are dead code.
 - The Chat card's `ABSENT` count uses `countFor_(assignments, 'absent', who)`, which
   also counts re-assigned rows belonging to a *different* original absentee — the
@@ -864,9 +990,9 @@ added there too, not in the editor.
 
 ---
 
-## 15. Migrating an in-service workbook
+## 16. Migrating an in-service workbook
 
-### 15.0 Two menu items, two jobs
+### 16.0 Two menu items, two jobs
 
 | Item | Does | Touches |
 |---|---|---|
@@ -912,7 +1038,7 @@ every edit.
 
 ---
 
-## 16. Local development
+## 17. Local development
 
 ```bash
 clasp status          # list tracked files
