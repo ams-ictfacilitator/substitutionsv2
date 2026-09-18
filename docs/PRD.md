@@ -1,6 +1,6 @@
 # PRD — Weekly Substitution System
 
-**Status:** Living · **Owner:** ICT Facilitator · **Last revised:** 2026-09-18
+**Status:** Living · **Owner:** ICT Facilitator · **Last revised:** 2026-09-18 (rev 2)
 **Repo:** `ams-ictfacilitator/substitutionsv2` · **Runtime:** Google Apps Script (V8), container-bound
 
 ---
@@ -142,9 +142,75 @@ lower the cap and the rule would fight itself.
 Tickets under `docs/tickets/`, design under `docs/rfc/`. Each ticket is a branch and a
 pull request reviewed before merge.
 
+### 9.1 Free-period guard — delivered 2026-09-18
+
 | Ticket | Scope | Depends on |
 |---|---|---|
 | T-001 | Core: rule type, free-period computation, engine integration, unit tests | — |
 | T-002 | Diagnostics: `Check rules` validation, uncovered-reason attribution, UI surfacing | T-001 |
 | T-003 | Reporting: guard in the weekly report's rules panel | T-001 |
 | T-004 | Documentation: README, Help tab, rule reference | T-001 |
+
+### 9.2 Substitution analytics — in progress
+
+| Ticket | Scope | Depends on |
+|---|---|---|
+| T-005 | Analytics engine: equity, variety and cross-tab aggregation over the whole log | — |
+| T-006 | PDF report + Drive filing + `📄 Reports` indexing | T-005 |
+| T-007 | Live `🔎 Analytics` tab | T-005 |
+| T-008 | Documentation | T-005 |
+
+---
+
+## 10. Requirement — substitution analytics
+
+### 10.1 Problem
+
+Two complaints have been raised by staff, and neither can currently be answered with
+evidence:
+
+1. **"Some teachers never get substitutions."**
+2. **"Some teachers get the same class, in the same period, on the same weekday, over
+   and over."**
+
+The weekly report answers *what happened this week*. Neither complaint is a weekly
+question — both are about the shape of the whole history. The system records everything
+needed to settle them and has never been asked to.
+
+### 10.2 The second complaint is probably structural
+
+The engine scores fairness on **how many** duties a teacher has, never **which** ones. A
+teacher who is the only one free in a recurring slot will be chosen for that slot every
+week, and the fairness model will keep choosing her, because from its point of view she
+is simply below her share. There is no memory of "you already did this".
+
+This PRD does **not** change that. The decision (2026-09-18) is to measure first: the
+report will show whether repetition is concentrated on a few people or endemic, and the
+remedy can then be chosen against evidence rather than intuition.
+
+### 10.3 Requirement
+
+A comprehensive analytics report over all recorded substitution history, delivered **both**
+as a filed PDF and as a live sheet tab, sharing one analytics engine.
+
+It must distinguish three populations, because conflating them misdirects the fix:
+
+| Population | Meaning | Where the fix lies |
+|---|---|---|
+| In the pool, never called | has a `Substitution` allotment, zero duties | the engine or their availability |
+| In the pool, far below share | called, but well under weighted fair share | the engine |
+| Not in the pool | no `Substitution` allotment, weight 0 | the Allotment, not the engine |
+
+### 10.4 Scope
+
+All rows in the `🗂️ Log`, with the current term distinguished. Not a date-range prompt —
+there must be one canonical document that can be circulated.
+
+Depth: one ranked comparative table covering every teacher, plus a detailed profile for
+outliers only — never called, furthest below share, or lowest variety.
+
+### 10.5 Out of scope
+
+- Any change to assignment behaviour. Diagnostic only, by decision.
+- Any change to the `🗂️ Log`, `⚙️ Config` or `👥 importHR` schema.
+- Analysis of absence itself — that is the weekly report's job.
