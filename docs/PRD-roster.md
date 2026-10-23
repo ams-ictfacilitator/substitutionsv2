@@ -7,7 +7,7 @@
 **Scope of this document:** design only. No code, and no live-data change until the user approves each preview.
 
 > **Public-repo rule.** Every name, code and address in this document is a placeholder.
-> "Edith Christopher" / `edith.christopher@school.example` / `AMS-0000` stand in for any real person.
+> "Asha Example" / `asha.example@school.example` / `AMS-0000` stand in for any real person.
 
 **Rev 2 changes (user decisions of 2026-10-23):**
 - Staff Code becomes the primary join key.
@@ -47,7 +47,7 @@
 
 **One Way** is a separate attendance system. Every day it reads `🗓️ Absence Register` by header name and has to work out *who* each row is about.
 
-Today the only identity in a row is `Teacher`, which is the timetable's spelling of a name. About 20 of the 75 names used so far do not match the Workspace directory exactly. For example, the Register says "Edith Christopher", the directory says "Edith Prameela B", and the mailbox is `edith.christopher@…`. One Way has to guess, and a wrong guess marks the wrong person absent.
+Today the only identity in a row is `Teacher`, which is the timetable's spelling of a name. About 20 of the 75 names used so far do not match the Workspace directory exactly. For example, the Register says "Asha Example", the directory says "Asha E Kumar", and the mailbox is `asha.example@…`. One Way has to guess, and a wrong guess marks the wrong person absent.
 
 The school already gives every staff member a unique **Staff Code** when they join. Nothing in this workbook records it, and `👥 importHR` (the Workspace directory) has no Staff Code. The codes live in the school's separate **HR Database** workbook, on the tab `CurrentStaff`. That workbook is a **sensitive** HR record: it holds family names, phone numbers, personal IDs and addresses. The names in it differ from the timetable spellings in the same ways the directory names do.
 
@@ -467,7 +467,7 @@ The ladder runs only over non-excluded HR rows, and only for roster rows without
 
 **Uniqueness pass.** If one email is proposed for two or more rows that would both be Active and do not share a Staff Code, every one of those rows is set to `Ambiguous`.
 
-**Worked example.** For "Edith Christopher", R1 finds nothing. R2 builds `edith.christopher` and finds one account, `edith.christopher@school.example`, whose directory name is "Edith Prameela B". The row becomes a **Candidate**, and a human types `Accept`.
+**Worked example.** For "Asha Example", R1 finds nothing. R2 builds `asha.example` and finds one account, `asha.example@school.example`, whose directory name is "Asha E Kumar". The row becomes a **Candidate**, and a human types `Accept`.
 
 ### 5.5 Confidence classes
 
@@ -735,7 +735,7 @@ There is **no Run ID**, because these rows do not come from an engine run. Dupli
 ### 7.2 Matching and review
 
 - **R7** Matching is pure and deterministic.
-  - *Test:* a fixture of about 30 names × 200 HR rows, including the Edith example, a device account, two staff sharing a first name, and a duplicate email.
+  - *Test:* a fixture of about 30 names × 200 HR rows, including the Asha example, a device account, two staff sharing a first name, and a duplicate email.
 - **R8** Confirmed-exact rows are pre-filled `Accept`. No row reaches `Confirmed` except through Apply with a Decision present.
   - *Test:* clearing every Decision and applying writes nothing.
 - **R9** Apply never overwrites a different existing Email, never writes an email that is not in importHR, and never gives one email to two unrelated Active rows. `No email` is refused for categories that require email.
