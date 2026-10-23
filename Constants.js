@@ -15,6 +15,7 @@ const SS = {
   DASHBOARD: '📊 Fairness',
   ANALYTICS: '🔎 Analytics',
   ABSENCE:   '🗓️ Absence Register',
+  NON_TEACHING: '🗓️ Non-Teaching Absence',
   RULES:     '⚖️ Rules',
   BLOCKS:    '🏫 Blocks & Floors',
   REPORTS:   '📄 Reports',

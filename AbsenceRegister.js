@@ -15,6 +15,9 @@
 const ABSENCE_HEADERS = ['Timestamp', 'Date', 'Day', 'Week', 'Teacher', 'Department', 'Team',
                          'Absence Type', 'Periods Away', 'Periods Scheduled', 'Periods To Cover',
                          'Covered', 'Uncovered', 'Cover Reassigned', 'Run ID', 'Marked By'];
+const NON_TEACHING_HEADERS = ['Date', 'Teacher', 'Absence Type', 'Periods Away', 'Marked By',
+                              'Staff Email', 'Staff Code', 'Category', 'Timestamp', 'Notes'];
+const NON_TEACHING_DATA_START = 3; // row 1 = title, row 2 = headers (same layout as the Register)
 const ABSENCE_TYPE_COL = 8;   // 'Absence Type' — the column the migration rewrites
 const ABSENCE_DATA_START = 3; // row 1 = title, row 2 = headers
 
