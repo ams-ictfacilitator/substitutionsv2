@@ -16,9 +16,12 @@ const { SCHOOL } = require('./fixture');
 const MOCK_SHEET = `
 var __calls = { setValues: 0, setBackgrounds: 0, valueGrids: [] };
 
-function __makeRange() {
+function __makeRange(rows, cols) {
   var self = {
-    setValues: function (v) { __calls.setValues++; __calls.valueGrids.push(v); return self; },
+    setValues: function (v) {
+      if (rows != null) __checkDims(v, rows, cols); // same check Sheets applies
+      __calls.setValues++; __calls.valueGrids.push(v); return self;
+    },
     setBackgrounds: function (v) { __calls.setBackgrounds++; return self; },
     setBackground: function () { return self; },
     setValue: function (v) { self._value = v; return self; },
@@ -42,7 +45,7 @@ function __makeMockSheet() {
   var sheet = {
     clear: function () { return sheet; },
     clearConditionalFormatRules: function () { return sheet; },
-    getRange: function () { return __makeRange(); },
+    getRange: function (r, c, nr, nc) { return typeof r === 'number' && nr != null ? __makeRange(nr, nc) : __makeRange(); },
     setRowHeight: function () { return sheet; },
     setColumnWidth: function () { return sheet; },
     setFrozenRows: function () { return sheet; },

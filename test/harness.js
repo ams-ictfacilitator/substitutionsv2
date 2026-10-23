@@ -40,6 +40,29 @@ var SpreadsheetApp = {
   },
   BorderStyle: { SOLID: 1, SOLID_THICK: 2 }
 };
+function __checkDims(values, rows, cols) {
+  if (values.length !== rows) {
+    throw new Error('The number of rows in the data does not match the number of rows in the range. Data has ' + values.length + ' but range has ' + rows);
+  }
+  for (var i = 0; i < values.length; i++) {
+    if (values[i].length !== cols) {
+      throw new Error('The number of columns in the data does not match the number of columns in the range. Data has ' + values[i].length + ' but range has ' + cols);
+    }
+  }
+}
+function __makeCheckedRange(rows, cols, onSet) {
+  var self = { _value: undefined };
+  ['setBackgrounds', 'setBackground', 'setFontColor', 'setFontWeight', 'setFontSize', 'setFontStyle',
+   'setVerticalAlignment', 'setHorizontalAlignment', 'setWrap', 'merge', 'setBorder', 'setFontFamily',
+   'setNote', 'setDataValidation', 'setNumberFormat'].forEach(function (m) { self[m] = function () { return self; }; });
+  self.setValue = function (v) { self._value = v; return self; };
+  self.setValues = function (values) {
+    if (rows != null) __checkDims(values, rows, cols);
+    if (onSet) onSet(values);
+    return self;
+  };
+  return self;
+}
 var PropertiesService = { getScriptProperties: function () {
   return { getProperty: function () { return ''; } }; } };
 var DriveApp = {}, ScriptApp = { WeekDay: {} }, MailApp = {}, UrlFetchApp = {};
