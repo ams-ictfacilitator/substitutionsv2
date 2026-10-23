@@ -160,6 +160,8 @@ pull request reviewed before merge.
 | T-007 | Live `🔎 Analytics` tab | T-005 |
 | T-008 | Documentation | T-005 |
 
+### 9.3 Staff roster and Staff Code / Staff Email join keys — designed, see [`PRD-roster.md`](PRD-roster.md) (T-009 onward)
+
 ---
 
 ## 10. Requirement — substitution analytics
