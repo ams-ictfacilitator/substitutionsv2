@@ -136,6 +136,7 @@ function refreshLabels_() {
 
   // chrome-only refreshes on tabs that DO hold data
   try { done = done.concat(migrateAbsenceVocabulary_()); } catch (e) { done.push('⚠️ absence register: ' + e.message); }
+  try { done = done.concat(refreshAbsenceRegisterChrome_()); } catch (e) { done.push('⚠️ absence register keys: ' + e.message); }
   try { done = done.concat(refreshMarkAbsenceChrome_()); } catch (e) { done.push('⚠️ mark absence: ' + e.message); }
 
   // rule tabs: reapply dropdowns and help text without touching the rows

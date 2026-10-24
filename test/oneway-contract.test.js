@@ -10,7 +10,7 @@ const nonTeachingName = '🗓️ Non-Teaching Absence';
 const registerHeaders = [
   'Timestamp', 'Date', 'Day', 'Week', 'Teacher', 'Department', 'Team',
   'Absence Type', 'Periods Away', 'Periods Scheduled', 'Periods To Cover',
-  'Covered', 'Uncovered', 'Cover Reassigned', 'Run ID', 'Marked By',
+  'Covered', 'Uncovered', 'Cover Reassigned', 'Run ID', 'Marked By', 'Staff Email', 'Staff Code',
 ];
 const nonTeachingHeaders = [
   'Date', 'Teacher', 'Absence Type', 'Periods Away', 'Marked By',
@@ -29,9 +29,8 @@ check('Register substring is unique among tab constants', run("Object.keys(SS).f
 check('non-teaching substring is unique among tab constants', run("Object.keys(SS).filter(function (k) { return k !== 'NON_TEACHING' && SS[k].indexOf('Non-Teaching Absence') > -1; }).length === 0"));
 check('Register headers keep the frozen first six columns in place',
   JSON.stringify(run('ABSENCE_HEADERS.slice(0, 6)')) === JSON.stringify(registerHeaders.slice(0, 6)));
-check('Register headers remain the original sixteen-column width',
-  run('ABSENCE_HEADERS.length') === 16 && JSON.stringify(run('ABSENCE_HEADERS')) === JSON.stringify(registerHeaders));
-// T-010 appends Staff Email, Staff Code: then update to length 18 and assert [16]=Staff Email, [17]=Staff Code (R26)
+check('Register headers append the two join-key columns',
+  run('ABSENCE_HEADERS.length') === 18 && JSON.stringify(run('ABSENCE_HEADERS')) === JSON.stringify(registerHeaders));
 check('non-teaching headers keep their frozen order',
   JSON.stringify(run('NON_TEACHING_HEADERS')) === JSON.stringify(nonTeachingHeaders));
 check('Register data starts at row 3', run('ABSENCE_DATA_START') === 3);
@@ -44,10 +43,13 @@ var __sheet = {
   clear: function () { return __sheet; }, clearConditionalFormatRules: function () { return __sheet; },
   getRange: function (r, c, nr, nc) {
     if (typeof r !== 'number') return __makeCheckedRange();
-    return __makeCheckedRange(nr == null ? 1 : nr, nc == null ? 1 : nc, function (v) { __writes.push({ row: r, col: c, values: v }); });
+    var range = __makeCheckedRange(nr == null ? 1 : nr, nc == null ? 1 : nc, function (v) { __writes.push({ row: r, col: c, values: v }); });
+    range.getValues = function () { return r === 2 ? [${JSON.stringify(registerHeaders)}] : []; };
+    return range;
   },
   setRowHeight: function () { return __sheet; }, setColumnWidth: function () { return __sheet; },
   setFrozenRows: function () { return __sheet; }, getMaxColumns: function () { return 26; },
+  getLastColumn: function () { return 18; },
   deleteColumns: function () { return __sheet; }, getMaxRows: function () { return 1000; },
   insertRowsAfter: function () { return __sheet; }, getLastRow: function () { return 1000; },
 };
