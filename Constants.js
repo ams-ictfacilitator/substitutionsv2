@@ -21,6 +21,10 @@ const SS = {
   REPORTS:   '📄 Reports',
   IMPORT_HR: '👥 importHR',
   HELP:      '📖 Help',
+  ROSTER:          '🪪 Teachers',
+  ROSTER_SETTINGS: '🧭 Roster Settings',
+  SYNC_PREVIEW:    '🧾 Sync Preview',
+  ROSTER_LOG:      '🪪 Roster Log',
 };
 
 /* ───────── Modern pastel palette ───────── */

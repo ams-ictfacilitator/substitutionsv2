@@ -62,13 +62,15 @@ function upgradeTabs() {
     [SS.ABSENCE, writeAbsenceRegisterTab_], [SS.RULES, writeRulesTab_],
     [SS.BLOCKS, writeBlocksTab_], [SS.REPORTS, writeReportsTab_],
     [SS.IMPORT_HR, writeImportHrTab_], [SS.HELP, writeHelpTab_],
-  ];
+  ].concat(rosterTabBuilders_());   // 🪪 roster tabs: created if missing, never rebuilt (RosterTabs.js)
   for (var i = 0; i < builders.length; i++) {
     if (ss.getSheetByName(builders[i][0])) continue;
     ss.insertSheet(builders[i][0]);
     try { builders[i][1](); } catch (e) { Logger.log('build ' + builders[i][0] + ': ' + e.message); }
     added.push(builders[i][0]);
   }
+
+  if (added.length) clearRosterCache_();   // roster tabs may have just been created
 
   // 2. add missing ⚙️ Config keys in place — existing values are never rewritten
   var cfgAdded = addMissingConfigRows_();
@@ -280,6 +282,7 @@ function setupAllTabs() {
   writeReportsTab_();
   writeImportHrTab_();
   writeHelpTab_();
+  ensureRosterTabs_();       // create-if-missing only: a rebuild must never touch the roster tabs
   clearCache();
   try { renderPool_(); renderFairness_(); renderAnalyticsTab_(); } catch (e) { /* source not connected yet */ }
   ensureAbsenceTrigger_();   // enable tick-to-run on the Mark Leave tab
