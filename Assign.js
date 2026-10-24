@@ -321,6 +321,10 @@ function hasAdjacentCover_(cover, slot) {
 function commitPlan(plan, markedBy) {
   if (!plan || !plan.ok) return { ok: false, error: (plan && plan.error) || 'No plan to commit.' };
 
+  // Pre-flight the Absence Register BEFORE any side effect, so a bad header
+  // fails the commit cleanly (no half-deleted rows, no duplicate notifications).
+  assertAbsenceRegisterReady_(plan.absences);
+
   // replace prior rows: this run's own cover + any cover the now-absent teachers were
   // providing (orphaned, within their leave window) — those are reassigned in this plan.
   removeForCommit_(plan);
