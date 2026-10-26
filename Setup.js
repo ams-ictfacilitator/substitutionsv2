@@ -63,7 +63,8 @@ function upgradeTabs() {
     [SS.BLOCKS, writeBlocksTab_], [SS.REPORTS, writeReportsTab_],
     [SS.IMPORT_HR, writeImportHrTab_], [SS.HELP, writeHelpTab_],
   ].concat(rosterTabBuilders_())   // 🪪 roster tabs: created if missing, never rebuilt (RosterTabs.js)
-   .concat([[SS.NON_TEACHING, writeNonTeachingTab_]]);   // 🗓️ non-teaching absence: same rule, built after Settings
+   .concat([[SS.NON_TEACHING, writeNonTeachingTab_]])   // 🗓️ non-teaching absence: same rule, built after Settings
+   .concat([[SS.BACKFILL_PREVIEW, writeBackfillPreviewTab_]]);   // 🧾 backfill preview (Backfill.js): safe path only, derived data
   for (var i = 0; i < builders.length; i++) {
     if (ss.getSheetByName(builders[i][0])) continue;
     ss.insertSheet(builders[i][0]);
