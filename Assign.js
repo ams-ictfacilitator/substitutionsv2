@@ -340,6 +340,8 @@ function commitPlan(plan, markedBy) {
   refreshDashboards_();
 
   return { ok: true, runId: runId, notified: notified, notifyError: plan.notifyError || '',
+           notNotified: plan.notNotified || [], contactError: plan.contactError || '',
+           contactFallback: plan.contactFallback || '',
            assigned: plan.summary.assigned, unassigned: plan.summary.unassigned,
            reassigned: plan.summary.reassigned,
            keyWarnings: reg.warnings, keyWarningText: absenceKeyWarningText_(reg.warnings) };

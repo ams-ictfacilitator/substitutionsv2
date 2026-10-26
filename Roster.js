@@ -503,9 +503,120 @@ function correctStaffCode_(displayName, newCode, reason) {
 function rosterOnEdit_(e) {
   clearRosterCache_();
   var sheet = e && e.range ? e.range.getSheet() : null;
-  if (!sheet || sheet.getName() !== SS.ROSTER) return;
-  var res = lockNewStaffCodes_();
-  if (res.refused.length) toast_(res.refused.join(' · '), '🪪 Staff Code not locked', 10);
+  if (!sheet) return;
+  var name = sheet.getName();
+  if (name === SS.ROSTER) {
+    var res = lockNewStaffCodes_();
+    if (res.refused.length) toast_(res.refused.join(' · '), '🪪 Staff Code not locked', 10);
+  }
+  // The Non-Teaching Teacher dropdown follows roster and category edits (R23).
+  if (name === SS.ROSTER || name === SS.ROSTER_SETTINGS) {
+    try { refreshNonTeachingTeacherList_(); } catch (err) { Logger.log('non-teaching list: ' + err.message); }
+  }
+}
+
+/** The editor's email from an onEdit event, or '' when Sheets does not identify them. */
+function nonTeachingUserEmail_(e) {
+  try {
+    var u = e && e.user;
+    if (!u) return '';
+    return norm_(typeof u === 'string' ? u : (typeof u.getEmail === 'function' ? u.getEmail() : u.email)).toLowerCase();
+  } catch (err) { return ''; }
+}
+
+/**
+ * onEdit for 🗓️ Non-Teaching Absence (PRD D5, D6, R24). Reads the roster only;
+ * never calls the engine. One batched write per edit.
+ *
+ * Teacher column edited (single cell, paste, drag-fill or clear):
+ *   Staff Code, Category and Staff Email are DERIVED from Teacher, so they are
+ *   overwritten every time with the roster's values (locked code; confirmed
+ *   email only) and left blank when the name is cleared, ambiguous or
+ *   name-only. A join key can therefore never carry over to another person.
+ *   A typed name that is not on the roster is skipped entirely: its keys are
+ *   blanked, and no Timestamp or Marked By is written (amber rule keeps it visible).
+ *   Timestamp and Marked By (e.user) fill only when blank; an unknown editor
+ *   leaves Marked By blank (amber) with a toast.
+ * Date column edited: a Date object or serial (paste) is rewritten as
+ *   yyyy-MM-dd text in Asia/Kolkata, because One Way matches the Date as text.
+ * Returns { rows, filled, unknownEditor } (for tests).
+ */
+function nonTeachingOnEdit_(e) {
+  var out = { rows: 0, filled: 0, unknownEditor: false };
+  if (!e || !e.range) return out;
+  var sheet = e.range.getSheet();
+  if (sheet.getName() !== SS.NON_TEACHING || sheet.getLastColumn() < 1) return out;
+  var lastCol = sheet.getLastColumn();
+  var at = rosterHeaderCols_(sheet.getRange(2, 1, 1, lastCol).getValues()[0]);
+  var col = function (h) { return at[rosterHeaderKey_(h)] || 0; };
+  var tc = col('Teacher'), dc = col('Date');
+  var r1 = e.range.getRow(), c1 = e.range.getColumn();
+  var nr = typeof e.range.getNumRows === 'function' ? e.range.getNumRows() : 1;
+  var nc = typeof e.range.getNumColumns === 'function' ? e.range.getNumColumns() : 1;
+  var inEdit = function (c) { return c && c >= c1 && c <= c1 + nc - 1; };
+  var doTeacher = inEdit(tc), doDate = inEdit(dc);
+  if (!doTeacher && !doDate) return out;
+  var first = Math.max(r1, NON_TEACHING_DATA_START), last = r1 + nr - 1;
+  if (last < first) return out;
+  var count = last - first + 1;
+
+  var derived = ['Staff Code', 'Category', 'Staff Email'], stamped = ['Timestamp', 'Marked By'];
+  var want = (doTeacher ? derived.concat(stamped) : []).concat(doDate ? ['Date'] : []);
+  var cols = {}, lo = 0, hi = 0;
+  want.forEach(function (h) {
+    cols[h] = col(h);
+    if (!cols[h]) return;
+    lo = lo ? Math.min(lo, cols[h]) : cols[h];
+    hi = Math.max(hi, cols[h]);
+  });
+  if (!lo) return out;
+
+  var span = sheet.getRange(first, lo, count, hi - lo + 1);
+  var vals = span.getValues();
+  var forms = typeof span.getFormulas === 'function' ? span.getFormulas() : null;
+  var teachers = doTeacher ? sheet.getRange(first, tc, count, 1).getValues() : null;
+  var who = nonTeachingUserEmail_(e), stamp = rosterStamp_();
+  var changed = false;
+  var setCell = function (i, h, v) {
+    if (!cols[h]) return;
+    var j = cols[h] - lo;
+    if (norm_(vals[i][j]) !== norm_(v) || (forms && forms[i][j])) { vals[i][j] = v; if (forms) forms[i][j] = ''; changed = true; out.filled++; }
+  };
+  var fillBlank = function (i, h, v) {
+    if (!cols[h] || v === '') return;
+    var j = cols[h] - lo;
+    if (norm_(vals[i][j]) === '' && !(forms && forms[i][j])) { vals[i][j] = v; changed = true; out.filled++; }
+  };
+
+  for (var i = 0; i < count; i++) {
+    if (doDate && cols['Date']) {
+      var d = vals[i][cols['Date'] - lo];
+      if (d instanceof Date && !isNaN(d.getTime())) { vals[i][cols['Date'] - lo] = Utilities.formatDate(d, ROSTER_TZ, 'yyyy-MM-dd'); changed = true; }
+    }
+    if (!doTeacher) continue;
+    var teacher = norm_(teachers[i][0]);
+    var keys = teacher ? rosterJoinKeys_(teacher) : null;
+    var found = !!(keys && keys.found);
+    var usable = found && !keys.ambiguous;
+    derived.forEach(function (h) {
+      var v = '';
+      if (usable) v = h === 'Staff Code' ? keys.staffCode : h === 'Category' ? keys.category : keys.staffEmail;
+      setCell(i, h, v);
+    });
+    if (!found) continue;   // blank or unknown name: no stamp, no Marked By
+    out.rows++;
+    fillBlank(i, 'Timestamp', stamp);
+    if (cols['Marked By'] && norm_(vals[i][cols['Marked By'] - lo]) === '' && !(forms && forms[i][cols['Marked By'] - lo])) {
+      if (who) fillBlank(i, 'Marked By', who); else out.unknownEditor = true;
+    }
+  }
+  if (changed) span.setValues(vals.map(function (r, i) {
+    return r.map(function (v, j) { return forms && forms[i][j] ? forms[i][j] : v; });
+  }));
+  if (out.unknownEditor) {
+    try { toast_('Marked By could not be identified. Type your email in the amber cell.', '🗓️ Non-Teaching Absence', 8); } catch (err) { /* advisory only */ }
+  }
+  return out;
 }
 
 /* ───────── Allotment sync (PRD D1, D2, §6.4) ───────── */
@@ -780,6 +891,7 @@ function applyRosterSync_() {
     rosterAppendRows_(roster, state.cols, newRows);
     rosterColumnUpdate_(preview, pv.cols['Result'], SYNC_DATA_START, results);
     clearRosterCache_();
+    try { refreshNonTeachingTeacherList_(); } catch (err) { Logger.log('non-teaching list: ' + err.message); }
     return { added: adds.length, deactivated: deacts.length, refreshed: refreshed, skipped: skipped };
   });
 }
@@ -793,7 +905,9 @@ function applyRosterSync_() {
  * is not an error. Nothing is written.
  *
  *   input { rows, settings, allotment: [names] | null, directory: {ok, emails} | null,
- *           loggedAdds: {name: true} | null }
+ *           loggedAdds: {name: true} | null, contacts?: readImportHrContacts_() result }
+ * With `contacts`, a Confirmed roster email that differs from the email of the
+ * same person's exact-name 👥 importHR account is a 'contact-change' warning (information only).
  */
 function computeRosterCheck_(input) {
   var rows = input.rows, S = input.settings, F = [];
@@ -952,11 +1066,36 @@ function computeRosterCheck_(input) {
       }
     });
   }
+  if (input.contacts && input.contacts.usedFallback) {
+    add('warn', 'importhr-column-fallback', null, input.contacts.fallbackReason);
+  }
+  if (input.contacts && input.contacts.ok) {
+    rosterContactChanges_(rows, input.contacts, S, infoOf).forEach(function (c) {
+      add('warn', 'contact-change', c.row, 'Contact change: ' + c.row.name + ' has ' + c.rosterEmail + ' on the roster but ' + c.hrEmail +
+        ' in 👥 importHR. Notifications use the roster email. Information only.');
+    });
+  }
   return { findings: F, counts: {
     error: F.filter(function (f) { return f.level === 'error'; }).length,
     warn: F.filter(function (f) { return f.level === 'warn'; }).length,
     info: F.filter(function (f) { return f.level === 'info'; }).length,
   } };
+}
+
+/**
+ * Pure. [{ row, rosterEmail, hrEmail }] for Active, non-name-only roster rows whose
+ * Confirmed email differs from the email of the single exact-name, non-excluded
+ * 👥 importHR account. Duplicate roster names are skipped (ambiguous).
+ */
+function rosterContactChanges_(rows, hr, S, infoOf) {
+  var counts = rosterNameCounts_(rows), out = [];
+  rows.forEach(function (r) {
+    if (!r.name || counts[r.name] > 1 || !r.active || r.matchStatus !== 'Confirmed' || !r.email) return;
+    if (infoOf[r.row].nameOnly) return;
+    var m = hrNameMatch_(hr, r.name, S);
+    if (m.rec && m.rec.email && m.rec.email !== r.email) out.push({ row: r, rosterEmail: r.email, hrEmail: m.rec.email });
+  });
+  return out;
 }
 
 /** { name: true } for every Teaching row sync added, from 🪪 Roster Log; null when unreadable. */
@@ -1054,10 +1193,18 @@ function checkRoster() {
     var allotment = null;
     try { allotment = readAllotmentForRoster_().names; } catch (e) { allotment = null; }
     var res = computeRosterCheck_({ rows: state.rows, settings: readRosterSettings_(), allotment: allotment,
-                                    directory: readImportHrEmails_(), loggedAdds: readRosterLoggedAdds_() });
+                                    directory: readImportHrEmails_(), loggedAdds: readRosterLoggedAdds_(),
+                                    contacts: readImportHrContacts_() });
     var icon = { error: '❌ ', warn: '⚠️ ', info: 'ℹ️ ' };
-    var lines = res.findings.slice(0, 40).map(function (f) { return icon[f.level] + f.text; });
-    if (res.findings.length > 40) lines.push('…and ' + (res.findings.length - 40) + ' more.');
+    var changes = res.findings.filter(function (f) { return f.kind === 'contact-change'; });
+    var others = res.findings.filter(function (f) { return f.kind !== 'contact-change'; });
+    var lines = others.slice(0, 40).map(function (f) { return icon[f.level] + f.text; });
+    if (others.length > 40) lines.push('…and ' + (others.length - 40) + ' more.');
+    if (changes.length) {
+      lines.push('', '📇 Contact changes (roster email differs from 👥 importHR):');
+      changes.slice(0, 20).forEach(function (f) { lines.push(icon[f.level] + f.text); });
+      if (changes.length > 20) lines.push('…and ' + (changes.length - 20) + ' more.');
+    }
     SpreadsheetApp.getUi().alert('🧪 Roster check',
       state.rows.length + ' roster row(s) checked.\n\n' + (lines.length ? lines.join('\n') : '✅ Nothing to report.') +
       '\n\n' + res.counts.error + ' error(s), ' + res.counts.warn + ' warning(s). Nothing was changed.',

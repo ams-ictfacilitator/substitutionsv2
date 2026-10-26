@@ -26,6 +26,7 @@ const SS = {
   SYNC_PREVIEW:    '🧾 Sync Preview',
   ROSTER_LOG:      '🪪 Roster Log',
   ROSTER_REVIEW:   '🪪 Roster Review',
+  BACKFILL_PREVIEW: '🧾 Backfill Preview',
 };
 
 /* ───────── Modern pastel palette ───────── */

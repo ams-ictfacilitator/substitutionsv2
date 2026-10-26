@@ -96,6 +96,7 @@ function onEditInstallable(e) {
     var sheet = e.range.getSheet();
     var tabName = sheet.getName();
     if (tabName === SS.ROSTER || tabName === SS.ROSTER_SETTINGS) { rosterOnEdit_(e); return; }
+    if (tabName === SS.NON_TEACHING) { nonTeachingOnEdit_(e); return; }
     if (tabName !== SS.MARK_ABSENCE) return;
     if (e.range.getRow() !== ML.ACTION_R || e.range.getColumn() !== ML.ACTION_C) return;
     var v = norm_(e.value);
@@ -229,7 +230,8 @@ function writeAbsenceResults_(sheet, plan, mode, res, note) {
     msg = (res && res.ok ? '✅ Saved · ' : '⚠️ ') + s.assigned + ' assigned'
       + (s.unassigned ? ' · ' + s.unassigned + ' unassigned' : '')
       + (s.reassigned ? ' · ' + s.reassigned + ' re-assigned' : '')
-      + (res && res.notified ? ' · Chat notified' : (res ? ' · (no channel sent)' : ''));
+      + (res && res.notified ? ' · Chat notified' : (res ? ' · (no channel sent)' : ''))
+      + notifyNotesText_(res);
     if (res && res.keyWarningText) msg += '\n⚠️ ' + res.keyWarningText;
   } else {
     msg = '👁 Preview · ' + s.assigned + ' assigned' + (s.unassigned ? ' · ' + s.unassigned + ' unassigned' : '')

@@ -112,6 +112,8 @@ function __newSheet(name) {
     rg.setNumberFormat = function (f) { s.formats = s.formats.filter(function (x) { return !(x.r === r && x.c === col && x.nr === nr && x.nc === nc); }); s.formats.push({ r: r, c: col, nr: nr, nc: nc, f: f }); return rg; };
     rg.setDataValidation = function (v) { s.validations = s.validations.filter(function (x) { return !(x.r === r && x.c === col && x.nr === nr && x.nc === nc); }); s.validations.push({ r: r, c: col, nr: nr, nc: nc, v: v }); return rg; };
     rg.protect = function () { return makeProt('RANGE'); };
+    rg.getNumRows = function () { return nr; };
+    rg.getNumColumns = function () { return nc; };
     rg.getRow = function () { return r; };
     rg.getColumn = function () { return col; };
     rg.getSheet = function () { return s; };
@@ -167,11 +169,16 @@ var __ss = {
 SpreadsheetApp.getActiveSpreadsheet = function () { return __ss; };
 SpreadsheetApp.ProtectionType = { RANGE: 'RANGE', SHEET: 'SHEET' };
 SpreadsheetApp.newDataValidation = function () {
-  var o = { _kind: '', _list: null };
-  ['requireCheckbox', 'requireDate', 'requireValueInList', 'setAllowInvalid'].forEach(function (m) {
-    o[m] = function (v) { if (m === 'requireValueInList') o._list = v; if (m !== 'setAllowInvalid') o._kind = m; return o; };
+  var o = { _kind: '', _list: null, _allow: true, _formula: null, _help: '' };
+  ['requireCheckbox', 'requireDate', 'requireValueInList', 'requireFormulaSatisfied', 'setAllowInvalid', 'setHelpText'].forEach(function (m) {
+    o[m] = function (v) {
+      if (m === 'requireValueInList') o._list = v;
+      if (m === 'requireFormulaSatisfied') o._formula = v;
+      if (m === 'setAllowInvalid') o._allow = v; else if (m === 'setHelpText') o._help = v; else o._kind = m;
+      return o;
+    };
   });
-  o.build = function () { return { kind: o._kind, list: o._list }; };
+  o.build = function () { return { kind: o._kind, list: o._list, allowInvalid: o._allow, formula: o._formula, help: o._help }; };
   return o;
 };
 SpreadsheetApp.newConditionalFormatRule = function () {

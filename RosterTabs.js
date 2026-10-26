@@ -748,3 +748,205 @@ function ensureRosterTabs_() {
   if (made.length) clearRosterCache_();   // a cached "tab missing" answer must not outlive the tab
   return made;
 }
+
+/* ───────── 🗓️ Non-Teaching Absence (T-018, PRD D5, D11, §6.8, R23) ───────── */
+
+/** 1-based column number to A1 letters. */
+function ntColLetter_(n) {
+  var s = '';
+  while (n > 0) { var m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+/** Active roster names whose Category is a known non-teaching one (Admin, Support Staff, Resource Person per Settings). */
+function nonTeachingTeacherNames_() {
+  var roster = getRoster_(), settings = readRosterSettings_(), seen = {}, out = [];
+  (roster.rows || []).forEach(function (r) {
+    if (!r.name || !r.active || seen[r.name]) return;
+    var info = rosterCategoryInfo_(settings, r.category);
+    if (!info.known || info.teaching) return;
+    seen[r.name] = true;
+    out.push(r.name);
+  });
+  return out.sort(function (a, b) { return a.localeCompare(b); });
+}
+
+/**
+ * (Re)write only the Teacher dropdown on the tab. Never touches a value.
+ * A no-op when the tab is missing. Called by the builder, and after roster
+ * edits and Apply sync so the list follows the roster (R23).
+ */
+function refreshNonTeachingTeacherList_() {
+  var sheet = sheet_(SS.NON_TEACHING);
+  if (!sheet || sheet.getLastColumn() < 1) return 0;
+  var at = rosterHeaderCols_(sheet.getRange(2, 1, 1, sheet.getLastColumn()).getValues()[0]);
+  var tc = at[rosterHeaderKey_('Teacher')];
+  if (!tc) return 0;
+  var names = nonTeachingTeacherNames_();
+  var rows = Math.max(1, sheet.getMaxRows() - NON_TEACHING_DATA_START + 1);
+  var rule = names.length
+    ? SpreadsheetApp.newDataValidation().requireValueInList(names, true).setAllowInvalid(false)
+        .setHelpText('Pick a name from the list.').build()
+    // Nobody qualifies: accept nothing, rather than offer a fake name that could be selected.
+    : SpreadsheetApp.newDataValidation().requireFormulaSatisfied('=FALSE').setAllowInvalid(false)
+        .setHelpText('No active non-teaching staff on the roster yet').build();
+  sheet.getRange(NON_TEACHING_DATA_START, tc, rows, 1).setDataValidation(rule);
+  return names.length;
+}
+
+/** Duplicate and blank-key colours as conditional formats. Replaces the tab's rule set (idempotent). */
+function applyNonTeachingColours_(sheet, at, rows) {
+  var L = function (h) { return ntColLetter_(at[rosterHeaderKey_(h)]); };
+  var cat = rosterSettingsSpan_(sheet_(SS.ROSTER_SETTINGS), 'Categories') || { first: 5, last: 14 };
+  // INDIRECT: a conditional format cannot reference another sheet directly.
+  var rng = function (c) { return 'INDIRECT("\'' + SS.ROSTER_SETTINGS + '\'!$' + c + '$' + cat.first + ':$' + c + '$' + cat.last + '")'; };
+  var look = function (settingsCol, fallback) {
+    return 'IFERROR(INDEX(' + rng(settingsCol) + ',MATCH($' + L('Category') + '3,' + rng('A') + ',0)),"' + fallback + '")';
+  };
+  var rosterNameLetter = ntColLetter_(getRoster_().cols['Display Name'] || 1);
+  var nameOnly = look('C', 'Staff Code') + '="Name only"';
+  var emailNeeded = 'AND(NOT(' + nameOnly + '),UPPER(' + look('D', 'TRUE') + '&"")="TRUE")';
+  var teacher = '$' + L('Teacher') + '3<>""';
+  var code = '$' + L('Staff Code') + '3', email = '$' + L('Staff Email') + '3', by = '$' + L('Marked By') + '3';
+  var colRange = function (h) { return '$' + L(h) + '$3:$' + L(h); };
+  var width = 0;
+  NON_TEACHING_HEADERS.forEach(function (h) { width = Math.max(width, at[rosterHeaderKey_(h)]); });
+  var one = function (h) { return sheet.getRange(NON_TEACHING_DATA_START, at[rosterHeaderKey_(h)], rows, 1); };
+  var rule = function (range, formula, bg) {
+    return SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=' + formula).setBackground(bg).setRanges([range]).build();
+  };
+  var whole = sheet.getRange(NON_TEACHING_DATA_START, 1, rows, width);
+  sheet.setConditionalFormatRules([
+    // Duplicates are shown, never deleted: (Date, Staff Code), or (Date, Teacher) when the person has no code.
+    rule(whole, 'AND($' + L('Date') + '3<>"",' + code + '<>"",COUNTIFS(' + colRange('Date') + ',$' + L('Date') + '3,' +
+         colRange('Staff Code') + ',' + code + ')>1)', C.ROSE_50),
+    rule(whole, 'AND($' + L('Date') + '3<>"",' + teacher + ',' + code + '="",COUNTIFS(' + colRange('Date') + ',$' + L('Date') + '3,' +
+         colRange('Teacher') + ',$' + L('Teacher') + '3)>1)', C.ROSE_50),
+    // Staff Code: amber when the category needs a code; grey "not applicable" for name-only categories.
+    rule(one('Staff Code'), 'AND(' + teacher + ',' + code + '="",' + nameOnly + ')', C.BUSY_BG),
+    rule(one('Staff Code'), 'AND(' + teacher + ',' + code + '="",NOT(' + nameOnly + '))', C.AMBER_50),
+    // Staff Email: amber only if the category requires email; otherwise grey "none expected".
+    rule(one('Staff Email'), 'AND(' + teacher + ',' + email + '="",NOT(' + emailNeeded + '))', C.BUSY_BG),
+    rule(one('Staff Email'), 'AND(' + teacher + ',' + email + '="",' + emailNeeded + ')', C.AMBER_50),
+    rule(one('Marked By'), 'AND(' + teacher + ',' + by + '="")', C.AMBER_50),
+    // A typed name that is not on the roster stays visible: nothing is filled for it.
+    rule(one('Teacher'), 'AND(' + teacher + ',COUNTIF(INDIRECT("\'' + SS.ROSTER + '\'!$' + rosterNameLetter + '$3:$' + rosterNameLetter + '"),$' +
+         L('Teacher') + '3)=0)', C.AMBER_50),
+  ]);
+}
+
+/**
+ * Build the tab's chrome: title, headers (row 2, found by name), widths,
+ * frozen header, notes, dropdowns, formats, colours. NEVER clears a cell and
+ * never trims a column, so it is safe to re-run over live rows.
+ */
+function writeNonTeachingTab_() {
+  var sheet = sheet_(SS.NON_TEACHING);
+  if (!sheet) return;
+  clearRosterCache_();   // the dropdown must see the roster as it is now, not a cached "tab missing"
+  var H = NON_TEACHING_HEADERS;
+  titleBand_(sheet, '🗓️ Non-Teaching Absence', H.length);
+  var at = ensureHeaderRow_(sheet, 2, H);
+  var col = function (h) { return at[rosterHeaderKey_(h)]; };
+  var width = 0;
+  H.forEach(function (h) { width = Math.max(width, col(h)); });
+  rosterStyleHeader_(sheet, 2, 1, width);
+  var widths = { 'Date': 95, 'Teacher': 200, 'Absence Type': 150, 'Periods Away': 110, 'Marked By': 190,
+                 'Staff Email': 220, 'Staff Code': 100, 'Category': 130, 'Timestamp': 150, 'Notes': 260 };
+  H.forEach(function (h) { sheet.setColumnWidth(col(h), widths[h]); });
+  sheet.setFrozenRows(2);
+
+  var rows = Math.max(1, sheet.getMaxRows() - NON_TEACHING_DATA_START + 1);
+  var dv = function (h) { return sheet.getRange(NON_TEACHING_DATA_START, col(h), rows, 1); };
+  // Date is yyyy-MM-dd TEXT (One Way string-matches it, like the Register): plain-text format plus a pattern rule,
+  // never requireDate(), which would make Sheets store a date serial. Existing cells are never converted.
+  var dateL = ntColLetter_(col('Date'));
+  dv('Date').setNumberFormat('@');
+  dv('Date').setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireFormulaSatisfied('=REGEXMATCH(' + dateL + NON_TEACHING_DATA_START + '&"","^\\d{4}-\\d{2}-\\d{2}$")')
+    .setAllowInvalid(false).setHelpText('Type the date as yyyy-mm-dd').build());
+  dv('Timestamp').setNumberFormat('@');   // text, so Sheets never turns the stamp into a date serial
+  dv('Absence Type').setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireValueInList(absenceTypeLabels_(), true).setAllowInvalid(false).build());
+  dv('Staff Code').setNumberFormat('@');   // plain text: a leading zero or letter prefix must survive
+  refreshNonTeachingTeacherList_();
+
+  var note = function (h, t) { sheet.getRange(2, col(h)).setNote(t); };
+  var dateNote = 'Type the date as yyyy-mm-dd (plain text).';
+  if (sheet.getLastRow() >= NON_TEACHING_DATA_START) {
+    var dates = sheet.getRange(NON_TEACHING_DATA_START, col('Date'), sheet.getLastRow() - NON_TEACHING_DATA_START + 1, 1).getValues();
+    if (dates.some(function (r) { return r[0] instanceof Date; })) {
+      dateNote += '\nSome existing dates are real dates, not text. They were left as they are; retype them as yyyy-mm-dd.';
+    }
+  }
+  note('Date', dateNote);
+  note('Teacher', 'Pick a name from the list: Active Admin, Support Staff and Resource Person rows of 🪪 Teachers.\n' +
+    'Choosing a name fills Staff Code, Category, Staff Email, Timestamp and Marked By in the blank cells.');
+  note('Absence Type', 'One of: ' + absenceTypeLabels_().join(' · '));
+  note('Marked By', 'Filled from the editor when Sheets identifies them. Amber means it could not be identified: type your email.');
+  note('Staff Email', 'Roster email, only when confirmed. Amber = this category needs an email and none is confirmed. Grey = none expected.');
+  note('Staff Code', 'Roster Staff Code, one of the join keys One Way reads. Amber = missing. Grey = not applicable (Resource Persons are matched on name only).');
+  note('Category', 'From the roster.');
+  note('Timestamp', 'When the row was recorded (Asia/Kolkata).');
+  sheet.getRange('A1').setNote(
+    'One row per person per day of non-teaching absence. Row 1 title, row 2 headers, data from row 3.\n' +
+    'Type a row; the blank key cells are filled from 🪪 Teachers. Nothing here feeds substitutions, the Log, reports or analytics.\n' +
+    'Red rows are duplicates (same Date and Staff Code, or same Date and Teacher when there is no code). They are never deleted.\n' +
+    'Matched by One Way on Staff Code, then Staff Email, then Teacher name.');
+  applyNonTeachingColours_(sheet, at, rows);
+}
+
+/** Create the tab if missing (and build only that). Returns true when it was created. Never rebuilds an existing tab. */
+function ensureNonTeachingTab_() {
+  var ss = ss_();
+  if (ss.getSheetByName(SS.NON_TEACHING)) return false;
+  ss.insertSheet(SS.NON_TEACHING);
+  try { writeNonTeachingTab_(); } catch (e) { Logger.log('build ' + SS.NON_TEACHING + ': ' + e.message); }
+  return true;
+}
+
+/* ───────── 🧾 Backfill Preview (T-017; the logic lives in Backfill.js) ───────── */
+
+const BACKFILL_PREVIEW_HEADERS = ['Tab', 'Row', 'Date', 'Teacher', 'Run ID (Register only)', 'Current Staff Code',
+  'Proposed Staff Code', 'Current Staff Email', 'Proposed Staff Email', 'Action', 'Code Action', 'Email Action', 'Result'];
+const BACKFILL_DATA_START = 3;                       // row 1 = title, row 2 = headers
+
+/**
+ * Build the tab's chrome: title, headers (row 2, by name), widths, frozen header, text
+ * formats, note. Never clears a cell and never trims a column, so it is safe to re-run.
+ */
+function writeBackfillPreviewTab_() {
+  var sheet = sheet_(SS.BACKFILL_PREVIEW);
+  if (!sheet) return;
+  var H = BACKFILL_PREVIEW_HEADERS;
+  if (norm_(sheet.getRange(1, 1).getValue()) === '') titleBand_(sheet, '🧾 Backfill Preview', H.length);
+  var at = ensureHeaderRow_(sheet, 2, H);
+  var width = 0;
+  H.forEach(function (h) { width = Math.max(width, at[rosterHeaderKey_(h)]); });
+  rosterStyleHeader_(sheet, 2, 1, width);
+  var widths = { 'Tab': 150, 'Row': 55, 'Date': 90, 'Teacher': 200, 'Run ID (Register only)': 130, 'Current Staff Code': 110,
+    'Proposed Staff Code': 110, 'Current Staff Email': 200, 'Proposed Staff Email': 200, 'Action': 150,
+    'Code Action': 140, 'Email Action': 150, 'Result': 260 };
+  H.forEach(function (h) { sheet.setColumnWidth(at[rosterHeaderKey_(h)], widths[h]); });
+  sheet.setFrozenRows(2);
+  var rows = Math.max(1, sheet.getMaxRows() - BACKFILL_DATA_START + 1);
+  ['Date', 'Current Staff Code', 'Proposed Staff Code'].forEach(function (h) {
+    sheet.getRange(BACKFILL_DATA_START, at[rosterHeaderKey_(h)], rows, 1).setNumberFormat('@');
+  });
+  sheet.getRange('A1').setNote(
+    'Derived by 🪪 Roster → Preview backfill; nothing here is typed by hand. Every row of 🗓️ Absence Register and the ' +
+    'non-teaching absence tab is checked; rows already filled are counted in the title, not listed.\n' +
+    'Will fill = a blank cell that the roster can fill (locked code, confirmed email). Name only = Resource Person: never a code or email, by design.\n' +
+    'Apply backfill fills only those blank cells, backs up the workbook first, and records each line in Result. Re-run it to resume.');
+  rosterHideIfUnused_(sheet, BACKFILL_DATA_START);
+}
+
+/** Create the tab if missing (and build only that). Returns true when it was created. */
+function ensureBackfillPreviewTab_() {
+  var ss = ss_();
+  if (ss.getSheetByName(SS.BACKFILL_PREVIEW)) return false;
+  ss.insertSheet(SS.BACKFILL_PREVIEW);
+  try { writeBackfillPreviewTab_(); } catch (e) { Logger.log('build ' + SS.BACKFILL_PREVIEW + ': ' + e.message); }
+  return true;
+}
+
