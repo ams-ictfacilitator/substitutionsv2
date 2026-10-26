@@ -97,9 +97,9 @@ function absenceRowValues_(record, layout) {
   put('Cover Reassigned', record.reassignedAway);
   put('Run ID', record.runId);
   put('Marked By', record.markedBy);
-  // Join keys remain blank until the roster and mark-time tickets supply them.
-  put('Staff Email', '');
-  put('Staff Code', '');
+  // Join keys come only from the roster (D6); blank means "not known, do not guess".
+  put('Staff Email', record.staffEmail);
+  put('Staff Code', record.staffCode);
   return row;
 }
 
@@ -176,12 +176,71 @@ function assertAbsenceRegisterReady_(absences) {
 }
 
 /**
+ * Join keys for every absent teacher, from ONE roster read (PRD D6, R17, R18).
+ * Staff Code = locked code; Staff Email = confirmed email, lower-case; anything
+ * else is blank. A name-only category (Resource Person) is blank by design and
+ * never warned. A roster that cannot be read yields blanks plus a warning for
+ * everyone: it must never block the commit.
+ *
+ * Returns { keys: { teacher: {staffCode, staffEmail} },
+ *           warnings: [{ teacher, missing: ['Staff Code'|'Staff Email'], reason }] }.
+ */
+function absenceJoinKeys_(absences) {
+  var keys = {}, warnings = [], seen = {}, names = [];
+  (absences || []).forEach(function (a) {
+    var n = norm_(a && a.teacher);
+    if (!n || seen[n]) return;
+    seen[n] = true; names.push(n);
+  });
+  var rosterError = '';
+  try {
+    var roster = getRoster_();
+    if (roster && roster.exists === false) rosterError = 'the roster tab is missing';
+  } catch (e) { rosterError = 'the roster could not be read'; }
+
+  names.forEach(function (n) {
+    var k = null;
+    if (!rosterError) {
+      try { k = rosterJoinKeys_(n); }
+      catch (e) { rosterError = 'the roster could not be read'; }
+    }
+    if (rosterError) {
+      keys[n] = { staffCode: '', staffEmail: '' };
+      warnings.push({ teacher: n, missing: ['Staff Code', 'Staff Email'], reason: rosterError });
+      return;
+    }
+    var code = k.staffCode ? String(k.staffCode).trim() : '';
+    var email = k.staffEmail ? String(k.staffEmail).trim().toLowerCase() : '';
+    keys[n] = { staffCode: code, staffEmail: email };
+    if (k.nameOnly) return;   // joins on the exact name only: not a warning (D11)
+    var missing = [], reason = '';
+    if (!k.found) { missing = ['Staff Code', 'Staff Email']; reason = 'not on the roster'; }
+    else if (k.codeState === 'duplicate name') { missing = ['Staff Code', 'Staff Email']; reason = 'duplicate name on the roster'; }
+    else {
+      if (!code) { missing.push('Staff Code'); reason = 'code ' + (k.codeState === 'missing' ? 'missing' : 'not confirmed/locked (' + k.codeState + ')'); }
+      if (!email) { missing.push('Staff Email'); reason += (reason ? '; ' : '') + 'email not confirmed'; }
+    }
+    if (missing.length) warnings.push({ teacher: n, missing: missing, reason: reason });
+  });
+  return { keys: keys, warnings: warnings };
+}
+
+/** R18 text, or '' when nothing is missing. */
+function absenceKeyWarningText_(warnings) {
+  if (!warnings || !warnings.length) return '';
+  return 'Saved. ' + warnings.length + ' teacher(s) are missing Staff Code / email, so One Way can\'t match them exactly: ' +
+    warnings.map(function (w) { return w.teacher + ' (' + w.missing.join(' + ') + ': ' + w.reason + ')'; }).join('; ');
+}
+
+/**
  * Append one row per absent teacher. `meta` = {dateStr, day, weekKey, runId, markedBy}.
+ * Returns { warnings } (R18) for the join keys left blank.
  */
 function appendToAbsenceRegister_(meta, absences) {
-  if (!absences || !absences.length) return;
+  if (!absences || !absences.length) return { warnings: [] };
   var sheet = ensureTab_(SS.ABSENCE, writeAbsenceRegisterTab_);
-  if (!sheet) return;
+  if (!sheet) return { warnings: [] };
+  var joined = absenceJoinKeys_(absences);
 
   var layout = absenceRegisterLayout_(sheet);
   requireAbsenceHeaders_(layout, ABSENCE_REQUIRED_HEADERS);
@@ -195,6 +254,8 @@ function appendToAbsenceRegister_(meta, absences) {
       scheduled: L.scheduled, toCover: L.toCover, covered: L.covered,
       uncovered: L.uncovered, reassignedAway: L.reassignedAway,
       runId: meta.runId, markedBy: meta.markedBy || '',
+      staffCode: (joined.keys[norm_(L.teacher)] || {}).staffCode || '',
+      staffEmail: (joined.keys[norm_(L.teacher)] || {}).staffEmail || '',
     }, layout));
   }
   var start = Math.max(sheet.getLastRow() + 1, ABSENCE_DATA_START);
@@ -203,6 +264,7 @@ function appendToAbsenceRegister_(meta, absences) {
   styleAbsenceRows_(sheet, start, rows);
   applyAbsenceKeyConditionalFormats_(sheet); // the grid may have just grown
   clearCache();
+  return { warnings: joined.warnings };
 }
 
 /** Status colouring on freshly written register rows (batched by run). */

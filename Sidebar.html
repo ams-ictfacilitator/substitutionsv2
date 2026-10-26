@@ -321,6 +321,7 @@
       if(out.notifyError) msg+=' · ⚠️ '+out.notifyError;
       var r=$('result');
       r.insertAdjacentHTML('afterbegin','<div class="note" style="background:var(--green50);color:var(--green)">'+esc(msg)+'</div>');
+      if(out.keyWarningText) r.insertAdjacentHTML('afterbegin','<div class="note err">⚠️ '+esc(out.keyWarningText)+'</div>');
       var b=$('goBtn'); b.textContent='Done ✓'; b.disabled=true;
     }).withFailureHandler(function(e){
       setBusy('goBtn','goLbl','Assign &amp; notify',false); flash(e.message);
