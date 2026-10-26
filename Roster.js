@@ -305,7 +305,7 @@ function rosterWarnings_(teachers) {
 function rosterWarningText_(w) {
   if (!w || !w.available) return '';
   var parts = [];
-  if (w.missingFromRoster.count) parts.push(w.missingFromRoster.count + ' not on the 🪪 Teachers roster (run 🪪 Sync roster)');
+  if (w.missingFromRoster.count) parts.push(w.missingFromRoster.count + ' not on the 🪪 Teachers roster (use 🪪 Roster → Preview sync)');
   if (w.missingCode.count) parts.push(w.missingCode.count + ' without a Staff Code');
   if (w.missingEmail.count) parts.push(w.missingEmail.count + ' without a confirmed email');
   if (w.duplicateNames.count) parts.push(w.duplicateNames.count + ' with a duplicate roster name');

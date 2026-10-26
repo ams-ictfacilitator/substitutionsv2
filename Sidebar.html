@@ -145,7 +145,7 @@
     var n=$('rosterWarn'), p=[];
     if(!w || !w.available){ n.className='note hide'; return; }
     function add(k,msg){ if(w[k] && w[k].count) p.push(w[k].count+' '+msg+' ('+w[k].names.slice(0,5).join(', ')+(w[k].count>5?', …':'')+')'); }
-    add('missingFromRoster','not on the 🪪 Teachers roster yet — run 🪪 Sync roster');
+    add('missingFromRoster','not on the 🪪 Teachers roster yet — use 🪪 Roster → Preview sync');
     add('missingCode','without a Staff Code');
     add('missingEmail','without a confirmed email');
     add('duplicateNames','with a duplicate roster name');
