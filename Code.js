@@ -51,6 +51,7 @@ function onOpen() {
       .addSeparator()
       .addItem('✏️  Correct Staff Code…', 'correctStaffCode')
       .addItem('🧪  Check roster', 'checkRoster')
+      .addItem('🧪  Test HR Database read', 'testHrDatabaseRead')
       .addItem('📜  Open Roster Log', 'openRosterLog'))
     .addSeparator()
     .addItem('🔁  Refresh Pool & Fairness', 'refreshPoolAndFairness')
