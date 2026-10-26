@@ -230,13 +230,15 @@ function writeAbsenceResults_(sheet, plan, mode, res, note) {
       + (s.unassigned ? ' · ' + s.unassigned + ' unassigned' : '')
       + (s.reassigned ? ' · ' + s.reassigned + ' re-assigned' : '')
       + (res && res.notified ? ' · Chat notified' : (res ? ' · (no channel sent)' : ''));
+    if (res && res.keyWarningText) msg += '\n⚠️ ' + res.keyWarningText;
   } else {
     msg = '👁 Preview · ' + s.assigned + ' assigned' + (s.unassigned ? ' · ' + s.unassigned + ' unassigned' : '')
       + (s.reassigned ? ' · ' + s.reassigned + ' re-assigned' : '')
       + ' — set Action → “Assign & notify” to save.';
   }
   if (note) msg += '\n' + note;
-  setAbsenceStatus_(sheet, plan.prettyDate + ' · ' + plan.day + '\n' + msg, (s.unassigned || note) ? C.AMBER : C.GREEN);
+  setAbsenceStatus_(sheet, plan.prettyDate + ' · ' + plan.day + '\n' + msg,
+    (s.unassigned || note || (res && res.keyWarningText)) ? C.AMBER : C.GREEN);
 }
 
 function clearAbsenceResults_(sheet) {
