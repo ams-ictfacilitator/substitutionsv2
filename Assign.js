@@ -336,12 +336,15 @@ function commitPlan(plan, markedBy) {
   try { notified = sendNotifications_(plan); } catch (e) { plan.notifyError = e.message; }
 
   appendToLog_(meta, plan.assignments, notified);
-  appendToAbsenceRegister_(meta, plan.absences);
+  var reg = appendToAbsenceRegister_(meta, plan.absences) || { warnings: [] };
   refreshDashboards_();
 
   return { ok: true, runId: runId, notified: notified, notifyError: plan.notifyError || '',
+           notNotified: plan.notNotified || [], contactError: plan.contactError || '',
+           contactFallback: plan.contactFallback || '',
            assigned: plan.summary.assigned, unassigned: plan.summary.unassigned,
-           reassigned: plan.summary.reassigned };
+           reassigned: plan.summary.reassigned,
+           keyWarnings: reg.warnings, keyWarningText: absenceKeyWarningText_(reg.warnings) };
 }
 
 /**

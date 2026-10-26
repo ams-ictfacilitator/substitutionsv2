@@ -556,12 +556,22 @@ you cannot DM yourself this way.
 
 ## 11. HR / Chat ID lookup
 
-`getHrMap()` builds `{ normalisedKey: {email, chatId} }` from `👥 importHR` (data from
-row 3). Keys are lowercased with runs of whitespace collapsed.
+`resolveContact_(name)` (`HR.js`) is the only way notifications find an email or Chat id
+(PRD D7). Order: the roster row's **Confirmed** Email (the Chat id then comes from the
+importHR account with that exact email), else the single non-excluded `👥 importHR` row
+whose normalised name matches **exactly**, else nothing. Returns
+`{ email, chatId, source: 'roster'|'importHR'|'none', ambiguous, reason, columnFallback }`.
+There is no prefix or substring matching. A Resource Person, a duplicated name and a
+shared/device account all resolve to `none`.
 
-`hrLookup_()` tries an exact key, then falls back to a **prefix match in either
-direction** (`k.startsWith(key) || key.startsWith(k)`). See §15 — this is loose enough
-to mis-route.
+`readImportHrContacts_()` reads importHR once per run, **by header name** (Teacher Name /
+Email / Chat User ID). Only if a header cannot be found are the Config `HR Col:` numbers
+used, and then `columnFallback` is true and the plan result says so.
+
+People with no resolvable contact are returned as `notNotified: [{name, reason}]` in the
+`commitPlan()` result and shown in the Chat card (only when email or DM is switched on).
+`🧪 Check roster` adds a **Contact changes** section (roster email differs from importHR;
+information only).
 
 Two ways to populate the tab (`HRDirectory.js`):
 
@@ -909,7 +919,8 @@ Two coordinators committing at the same moment can interleave: both read the sam
 snapshot, both compute against stale usage, both delete-and-append. Result: double
 bookings or lost rows. `commitPlan()` is the natural place for a script lock.
 
-### 15.3 `hrLookup_()` prefix matching can mis-route email and DMs
+### 15.3 `hrLookup_()` prefix matching can mis-route email and DMs — FIXED (T-015)
+Replaced by `resolveContact_()` (exact name only, roster first). Original description:
 The fallback matches in both directions, so a short directory name is a prefix of many
 allotment names (and vice versa). `"Anita"` will match whichever of `"Anita Mary"` /
 `"Anita Sharma"` the object happens to iterate first. Since this decides who receives

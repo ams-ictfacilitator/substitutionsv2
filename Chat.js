@@ -15,6 +15,11 @@ function sendNotifications_(plan) {
   var cfg = getConfig();
   var ok = false;
 
+  // Who cannot be reached personally (no resolvable contact). Worked out first so the
+  // Chat card can show it; it never stops a notification.
+  try { plan.notNotified = collectNotNotified_(plan, cfg); }
+  catch (e) { plan.notNotified = []; plan.contactError = e.message; Logger.log('Contact check failed: ' + e.message); }
+
   if (cfg.sendChatCard && cfg.chatWebhook) {
     postChatCard_(cfg.chatWebhook, buildPlanCard_(plan, cfg));
     ok = true;
@@ -26,6 +31,41 @@ function sendNotifications_(plan) {
     try { dmSubstitutes_(plan, cfg); } catch (e) { Logger.log('DM failed: ' + e.message); }
   }
   return ok;
+}
+
+/**
+ * People covering a period who no enabled personal channel (email / DM) can
+ * reach: [{ name, reason }]. Empty when neither channel is on. Name-only rows
+ * (Resource Persons) and rows with no email land here by design; this is
+ * information, never an error (PRD R15).
+ */
+function collectNotNotified_(plan, cfg) {
+  var out = [];
+  if (!cfg.sendEmail && !cfg.sendDm) return out;
+  var hr = readImportHrContacts_();
+  if (hr.usedFallback) plan.contactFallback = hr.fallbackReason;   // said in the plan result, never silent
+  Object.keys(plan.summary.byTeacher).sort().forEach(function (name) {
+    var c = resolveContact_(name);
+    if ((cfg.sendEmail && c.email) || (cfg.sendDm && c.chatId)) return;
+    out.push({ name: name, reason: c.source === 'none' ? c.reason
+      : (cfg.sendEmail && !cfg.sendDm ? 'no email in 👥 importHR' : 'no Chat user ID in 👥 importHR') });
+  });
+  return out;
+}
+
+/**
+ * The visible notes for a commit result: who was not notified, the importHR
+ * column-position fallback, and a failed contact check. '' when there is nothing to say.
+ */
+function notifyNotesText_(res) {
+  var t = '';
+  if (!res) return t;
+  if (res.notNotified && res.notNotified.length) {
+    t += ' · not notified: ' + res.notNotified.map(function (x) { return x.name + ' (' + x.reason + ')'; }).join('; ');
+  }
+  if (res.contactFallback) t += ' · ⚠️ ' + res.contactFallback;
+  if (res.contactError) t += ' · ⚠️ Could not work out who was not notified: ' + res.contactError;
+  return t;
 }
 
 /** POST a cardsV2 payload to a Google Chat incoming webhook. */
@@ -110,6 +150,13 @@ function buildPlanCard_(plan, cfg) {
   }
   if (subWidgets.length) sections.push({ header: 'WHO COVERS WHAT', widgets: subWidgets });
 
+  // ── People nobody could be told personally ──
+  if (plan.notNotified && plan.notNotified.length) {
+    sections.push({ header: 'NOT NOTIFIED · NO CONFIRMED CONTACT', widgets: plan.notNotified.map(function (x) {
+      return decorated_('📭', '<b>' + esc_(x.name) + '</b>', esc_(x.reason), null);
+    }) });
+  }
+
   // ── Footer / summary + button ──
   var footWidgets = [{
     decoratedText: {
@@ -166,7 +213,7 @@ function emailSubstitutes_(plan, cfg) {
   var sent = false;
   var subs = plan.summary.byTeacher;
   for (var name in subs) {
-    var email = lookupEmail_(name);
+    var email = resolveContact_(name).email;
     if (!email) continue;
     var rows = subs[name];
     var html = buildEmailHtml_(plan, name, rows, cfg);
@@ -215,7 +262,7 @@ function buildEmailHtml_(plan, name, rows, cfg) {
 function dmSubstitutes_(plan, cfg) {
   var subs = plan.summary.byTeacher;
   for (var name in subs) {
-    var chatUserId = lookupChatUserId_(name); // e.g. "users/123456789"
+    var chatUserId = resolveContact_(name).chatId; // e.g. "users/123456789"
     if (!chatUserId) continue;
     try { sendChatDm_(chatUserId, buildDmText_(plan, name, subs[name], cfg)); }
     catch (e) { Logger.log('DM to ' + name + ' failed: ' + e.message); }

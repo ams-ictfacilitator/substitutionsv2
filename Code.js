@@ -51,6 +51,7 @@ function onOpen() {
       .addSeparator()
       .addItem('✏️  Correct Staff Code…', 'correctStaffCode')
       .addItem('🧪  Check roster', 'checkRoster')
+      .addItem('🧪  Test HR Database read', 'testHrDatabaseRead')
       .addItem('📜  Open Roster Log', 'openRosterLog'))
     .addSeparator()
     .addItem('🔁  Refresh Pool & Fairness', 'refreshPoolAndFairness')
@@ -104,10 +105,11 @@ function uiBootstrap() {
   var cfg = getConfig();
   var teachers = [];
   var sourceErr = '';
-  try { teachers = getAllTeachers(); }
+  try { teachers = getMarkableTeachers_(); }
   catch (e) { sourceErr = e.message; }
   return {
     teachers: teachers,
+    rosterWarnings: rosterWarnings_(teachers),
     today: isoDate_(new Date()),
     schoolName: cfg.schoolName,
     termLabel: cfg.termLabel,
@@ -174,7 +176,8 @@ function quickMark() {
   var out = uiCommit(dateStr, parts, ABSENCE_TYPES[0].id, null);
   if (!out.ok) { ui.alert('Could not assign', out.error, ui.ButtonSet.OK); return; }
   toast_(out.assigned + ' assigned' + (out.unassigned ? ', ' + out.unassigned + ' unassigned' : '') +
-         (out.notified ? ' · notified' : ''), '✅', 8);
+         (out.notified ? ' · notified' : '') +
+         notifyNotesText_(out), '✅', 8);
 }
 
 function clearDatePrompt() {
