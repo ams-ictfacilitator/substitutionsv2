@@ -319,6 +319,9 @@
         +(out.reassigned?' · '+out.reassigned+' re-assigned':'')
         +(out.notified?' · notified the space':' · (no channel sent)');
       if(out.notifyError) msg+=' · ⚠️ '+out.notifyError;
+      if(out.notNotified&&out.notNotified.length) msg+=' · not notified: '+out.notNotified.map(function(x){return x.name+' ('+x.reason+')';}).join('; ');
+      if(out.contactFallback) msg+=' · ⚠️ '+out.contactFallback;
+      if(out.contactError) msg+=' · ⚠️ Could not work out who was not notified: '+out.contactError;
       var r=$('result');
       r.insertAdjacentHTML('afterbegin','<div class="note" style="background:var(--green50);color:var(--green)">'+esc(msg)+'</div>');
       var b=$('goBtn'); b.textContent='Done ✓'; b.disabled=true;

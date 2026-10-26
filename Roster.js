@@ -709,7 +709,9 @@ function applyRosterSync_() {
  * is not an error. Nothing is written.
  *
  *   input { rows, settings, allotment: [names] | null, directory: {ok, emails} | null,
- *           loggedAdds: {name: true} | null }
+ *           loggedAdds: {name: true} | null, contacts?: readImportHrContacts_() result }
+ * With `contacts`, a Confirmed roster email that differs from the email of the
+ * same person's exact-name 👥 importHR account is a 'contact-change' warning (information only).
  */
 function computeRosterCheck_(input) {
   var rows = input.rows, S = input.settings, F = [];
@@ -868,11 +870,36 @@ function computeRosterCheck_(input) {
       }
     });
   }
+  if (input.contacts && input.contacts.usedFallback) {
+    add('warn', 'importhr-column-fallback', null, input.contacts.fallbackReason);
+  }
+  if (input.contacts && input.contacts.ok) {
+    rosterContactChanges_(rows, input.contacts, S, infoOf).forEach(function (c) {
+      add('warn', 'contact-change', c.row, 'Contact change: ' + c.row.name + ' has ' + c.rosterEmail + ' on the roster but ' + c.hrEmail +
+        ' in 👥 importHR. Notifications use the roster email. Information only.');
+    });
+  }
   return { findings: F, counts: {
     error: F.filter(function (f) { return f.level === 'error'; }).length,
     warn: F.filter(function (f) { return f.level === 'warn'; }).length,
     info: F.filter(function (f) { return f.level === 'info'; }).length,
   } };
+}
+
+/**
+ * Pure. [{ row, rosterEmail, hrEmail }] for Active, non-name-only roster rows whose
+ * Confirmed email differs from the email of the single exact-name, non-excluded
+ * 👥 importHR account. Duplicate roster names are skipped (ambiguous).
+ */
+function rosterContactChanges_(rows, hr, S, infoOf) {
+  var counts = rosterNameCounts_(rows), out = [];
+  rows.forEach(function (r) {
+    if (!r.name || counts[r.name] > 1 || !r.active || r.matchStatus !== 'Confirmed' || !r.email) return;
+    if (infoOf[r.row].nameOnly) return;
+    var m = hrNameMatch_(hr, r.name, S);
+    if (m.rec && m.rec.email && m.rec.email !== r.email) out.push({ row: r, rosterEmail: r.email, hrEmail: m.rec.email });
+  });
+  return out;
 }
 
 /** { name: true } for every Teaching row sync added, from 🪪 Roster Log; null when unreadable. */
@@ -970,10 +997,18 @@ function checkRoster() {
     var allotment = null;
     try { allotment = readAllotmentForRoster_().names; } catch (e) { allotment = null; }
     var res = computeRosterCheck_({ rows: state.rows, settings: readRosterSettings_(), allotment: allotment,
-                                    directory: readImportHrEmails_(), loggedAdds: readRosterLoggedAdds_() });
+                                    directory: readImportHrEmails_(), loggedAdds: readRosterLoggedAdds_(),
+                                    contacts: readImportHrContacts_() });
     var icon = { error: '❌ ', warn: '⚠️ ', info: 'ℹ️ ' };
-    var lines = res.findings.slice(0, 40).map(function (f) { return icon[f.level] + f.text; });
-    if (res.findings.length > 40) lines.push('…and ' + (res.findings.length - 40) + ' more.');
+    var changes = res.findings.filter(function (f) { return f.kind === 'contact-change'; });
+    var others = res.findings.filter(function (f) { return f.kind !== 'contact-change'; });
+    var lines = others.slice(0, 40).map(function (f) { return icon[f.level] + f.text; });
+    if (others.length > 40) lines.push('…and ' + (others.length - 40) + ' more.');
+    if (changes.length) {
+      lines.push('', '📇 Contact changes (roster email differs from 👥 importHR):');
+      changes.slice(0, 20).forEach(function (f) { lines.push(icon[f.level] + f.text); });
+      if (changes.length > 20) lines.push('…and ' + (changes.length - 20) + ' more.');
+    }
     SpreadsheetApp.getUi().alert('🧪 Roster check',
       state.rows.length + ' roster row(s) checked.\n\n' + (lines.length ? lines.join('\n') : '✅ Nothing to report.') +
       '\n\n' + res.counts.error + ' error(s), ' + res.counts.warn + ' warning(s). Nothing was changed.',
