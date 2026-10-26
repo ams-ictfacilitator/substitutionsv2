@@ -81,7 +81,7 @@ function writeMarkAbsenceTab_() {
 function refreshAbsenceTabTeacherList_() {
   var sheet = sheet_(SS.MARK_ABSENCE);
   if (!sheet) return;
-  var teachers = getAllTeachers();              // throws if source not connected
+  var teachers = getMarkableTeachers_();        // Allotment minus Active = FALSE; throws if source not connected
   if (!teachers.length) return;
   sheet.getRange(ML.FIRST_R, ML.TEACH_C, ML.ROWS, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(teachers, true).setAllowInvalid(true).build());
@@ -110,7 +110,12 @@ function openMarkAbsenceTab() {
   var sheet = sheet_(SS.MARK_ABSENCE);
   if (!sheet) { toast_('Run 🛠️ Build / rebuild all tabs first.', '⚠️'); return; }
   ss_().setActiveSheet(sheet);
-  try { refreshAbsenceTabTeacherList_(); }
+  try {
+    refreshAbsenceTabTeacherList_();
+    var warn = rosterWarningText_(rosterWarnings_());
+    var cur = norm_(sheet.getRange(ML.STATUS_R, ML.STATUS_C).getValue());
+    if (warn && (!cur || cur.indexOf('Add teacher(s)') === 0 || cur.indexOf('🪪 Roster') === 0)) setAbsenceStatus_(sheet, warn, C.AMBER);
+  }
   catch (e) { setAbsenceStatus_(sheet, '⚠️ Connect the main sheet in ⚙️ Config to load teacher names.', C.ROSE); }
   ensureAbsenceTrigger_();
 }
@@ -186,10 +191,15 @@ function runAbsenceTab_(mode) {
     try { res = commitPlan(plan, activeEmail_()); }
     catch (e) { setAbsenceStatus_(sheet, '⚠️ ' + e.message, C.ROSE); }
   }
-  writeAbsenceResults_(sheet, plan, mode, res);
+  // Warn, never block (D2): an inactive or unrostered name can still be typed and marked.
+  var notes = [], inactive = rosterInactiveAmong_(teachers);
+  if (inactive.length) notes.push('⚠️ Marked Inactive on the roster: ' + inactive.join(', ') + '.');
+  var rw = rosterWarningText_(rosterWarnings_(teachers));
+  if (rw) notes.push(rw);
+  writeAbsenceResults_(sheet, plan, mode, res, notes.join('\n'));
 }
 
-function writeAbsenceResults_(sheet, plan, mode, res) {
+function writeAbsenceResults_(sheet, plan, mode, res, note) {
   var rows = plan.assignments.slice().sort(function (a, b) {
     return a.period - b.period || a.absent.localeCompare(b.absent);
   });
@@ -226,8 +236,9 @@ function writeAbsenceResults_(sheet, plan, mode, res) {
       + (s.reassigned ? ' · ' + s.reassigned + ' re-assigned' : '')
       + ' — set Action → “Assign & notify” to save.';
   }
+  if (note) msg += '\n' + note;
   setAbsenceStatus_(sheet, plan.prettyDate + ' · ' + plan.day + '\n' + msg,
-    (s.unassigned || (res && res.keyWarningText)) ? C.AMBER : C.GREEN);
+    (s.unassigned || note || (res && res.keyWarningText)) ? C.AMBER : C.GREEN);
 }
 
 function clearAbsenceResults_(sheet) {
