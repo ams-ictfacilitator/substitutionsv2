@@ -345,7 +345,8 @@ const STAFF = [
   check('R34 the reader itself never installs or touches a trigger, cache or properties',
     !/ScriptApp|CacheService|PropertiesService|UrlFetchApp|postChat|notifyOps/.test(srcs['HrDatabase.js'].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
   const callers = files.filter(f => f !== 'HrDatabase.js' && /readHrDatabase_\(/.test(srcs[f].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')));
-  check('R34 nothing outside HrDatabase.js calls the reader yet (later tickets call it from menu handlers only)', callers.length === 0, J(callers));
+  check('R34 the only callers outside HrDatabase.js are the roster review (preview and apply, both reached from menu handlers only)',
+    J(callers.sort()) === J(['RosterReview.js']), J(callers));
   check('R34 the dry run is a menu item under 🪪 Roster', (() => {
     const ctx = load(files, MOCK + HR_OVER2);
     ctx.run('onOpen()');
