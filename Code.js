@@ -105,10 +105,11 @@ function uiBootstrap() {
   var cfg = getConfig();
   var teachers = [];
   var sourceErr = '';
-  try { teachers = getAllTeachers(); }
+  try { teachers = getMarkableTeachers_(); }
   catch (e) { sourceErr = e.message; }
   return {
     teachers: teachers,
+    rosterWarnings: rosterWarnings_(teachers),
     today: isoDate_(new Date()),
     schoolName: cfg.schoolName,
     termLabel: cfg.termLabel,
