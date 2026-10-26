@@ -62,7 +62,7 @@ const throws = fn => { try { fn(); return false; } catch (e) { return true; } };
 {
   const t = fresh();
   const names = t.run('__book.order');
-  check('R1 builds the four roster tabs', eq(names, [SET, T, PREV, LOG]), J(names));
+  check('R1 builds the roster tabs (the four of T-011, then 🪪 Roster Review from T-013)', eq(names, [SET, T, PREV, LOG, '🪪 Roster Review']), J(names));
   check('tab-name constants are the frozen names',
     t.run('SS.ROSTER') === T && t.run('SS.ROSTER_SETTINGS') === SET && t.run('SS.SYNC_PREVIEW') === PREV && t.run('SS.ROSTER_LOG') === LOG);
   check('roster tab names do not clash with any other tab constant',
@@ -561,8 +561,8 @@ function kinds(res, name) { return res.findings.filter(f => !name || f.name === 
   const dataBefore = run('__snapshot()');
   run('upgradeTabs()');
   const names = run('__book.order');
-  check('R1 upgradeTabs creates the four roster tabs', [SET, T, PREV, LOG].every(n => names.includes(n)));
-  const unchanged = run('__book.order').filter(n => ![SET, T, PREV, LOG, '🗓️ Non-Teaching Absence', '🧾 Backfill Preview'].includes(n));   // T-018 and T-017 tabs are new too
+  check('R1 upgradeTabs creates the roster tabs', [SET, T, PREV, LOG, '🪪 Roster Review'].every(n => names.includes(n)));
+  const unchanged = run('__book.order').filter(n => ![SET, T, PREV, LOG, '🪪 Roster Review', '🗓️ Non-Teaching Absence', '🧾 Backfill Preview'].includes(n));   // T-018, T-017 and T-013 tabs are new too
   const after = JSON.parse(run(`__snapshot(${J(unchanged)})`)), before = JSON.parse(dataBefore);
   check('R1 upgradeTabs leaves every existing tab untouched (sentinels survive; Config, Log, importHR, Reports rows)',
     unchanged.every(n => J(after[n]) === J(before[n])) && run('__book.sheets[SS.LOG].cells["5,1"]') === 'SENTINEL-LOG' &&

@@ -35,6 +35,18 @@ const ROSTER_LOG_HEADERS = ['Timestamp', 'User', 'Display Name', 'Field', 'Old',
 const ROSTER_LOG_DATA_START = 3;
 const ROSTER_LOG_SOURCES = ['Sync', 'Apply', 'HR Database', 'Correction', 'First set'];
 
+// 🪪 Roster Review (T-013, PRD §5.6 / §6.3). The last three columns are code-owned and hidden.
+const REVIEW_HEADERS = ['Link', 'Display Name', 'Category', 'Class', 'Rule',
+                        'Candidate 1 Name', 'Candidate 1 Value', 'Candidate 2 Name', 'Candidate 2 Value',
+                        'Candidate 3 Name', 'Candidate 3 Value',
+                        'HR Category', 'HR Department', 'HR Team/Role', 'HR Email', 'Evidence',
+                        'Decision', 'Manual Email / Code', 'Display Name override', 'Notes', 'Result',
+                        'Key', 'Basis', 'Prefilled'];
+const REVIEW_DATA_START = 3;
+const REVIEW_LINKS = ['Email', 'Staff Code', 'Propose add'];
+const REVIEW_DECISIONS = ['Accept', 'Pick 2', 'Pick 3', 'Enter email', 'Enter code', 'No email', 'Ignore'];
+const REVIEW_HIDDEN = ['Key', 'Basis', 'Prefilled'];
+
 /**
  * The HR Database whitelist (PRD D9). FROZEN: these seven logical fields are
  * the only columns of the HR workbook that code may ever read. T-020's reader
@@ -650,6 +662,65 @@ function writeRosterLogTab_() {
   rosterHideIfUnused_(sheet, ROSTER_LOG_DATA_START);
 }
 
+/* ───────── 🪪 Roster Review ───────── */
+
+function writeRosterReviewTab_() {
+  var sheet = sheet_(SS.ROSTER_REVIEW);
+  if (!sheet) return;
+  var H = REVIEW_HEADERS;
+  titleBand_(sheet, '🪪 Roster Review', H.length);
+  var at = ensureHeaderRow_(sheet, 2, H);
+  var col = function (h) { return at[rosterHeaderKey_(h)]; };
+  var width = 0;
+  H.forEach(function (h) { width = Math.max(width, col(h)); });
+  rosterStyleHeader_(sheet, 2, 1, width);
+  var widths = { 'Link': 100, 'Display Name': 200, 'Category': 120, 'Class': 120, 'Rule': 150,
+                 'Candidate 1 Name': 180, 'Candidate 1 Value': 150, 'Candidate 2 Name': 180, 'Candidate 2 Value': 150,
+                 'Candidate 3 Name': 180, 'Candidate 3 Value': 150, 'HR Category': 120, 'HR Department': 120,
+                 'HR Team/Role': 120, 'HR Email': 200, 'Evidence': 280, 'Decision': 110, 'Manual Email / Code': 200,
+                 'Display Name override': 200, 'Notes': 220, 'Result': 280, 'Key': 80, 'Basis': 80, 'Prefilled': 80 };
+  H.forEach(function (h) { sheet.setColumnWidth(col(h), widths[h]); });
+  sheet.setFrozenRows(2);
+  sheet.setFrozenColumns(2);
+  var rows = Math.max(1, sheet.getMaxRows() - REVIEW_DATA_START + 1);
+  var rng = function (h) { return sheet.getRange(REVIEW_DATA_START, col(h), rows, 1); };
+  rng('Decision').setDataValidation(SpreadsheetApp.newDataValidation()
+    .requireValueInList(REVIEW_DECISIONS, true).setAllowInvalid(true).build());
+  // Plain text, so a code with a leading zero or an address is never reinterpreted.
+  ['Candidate 1 Value', 'Candidate 2 Value', 'Candidate 3 Value', 'Manual Email / Code', 'Key', 'Basis', 'Prefilled']
+    .forEach(function (h) { rng(h).setNumberFormat('@'); });
+  // Code-owned columns are grey; the three bookkeeping columns are hidden.
+  H.forEach(function (h) {
+    if (['Decision', 'Manual Email / Code', 'Display Name override', 'Notes'].indexOf(h) < 0) rng(h).setBackground(C.BUSY_BG);
+  });
+  REVIEW_HIDDEN.forEach(function (h) { sheet.hideColumns(col(h)); });
+  var L = function (h) { return String.fromCharCode(64 + col(h)); };
+  var rule = function (h, formula, bg) {
+    return SpreadsheetApp.newConditionalFormatRule().whenFormulaSatisfied('=' + formula).setBackground(bg)
+      .setRanges([rng(h)]).build();
+  };
+  var cls = '$' + L('Class') + '3', res = '$' + L('Result') + '3';
+  sheet.setConditionalFormatRules([
+    rule('Class', cls + '="Confirmed-exact"', C.GREEN_50),
+    rule('Class', 'OR(' + cls + '="Candidate",' + cls + '="Ambiguous")', C.AMBER_50),
+    rule('Class', 'OR(' + cls + '="Unmatched",' + cls + '="No email expected",' + cls + '="Unavailable")', C.BUSY_BG),
+    rule('Result', 'LEFT(' + res + ',7)="Refused"', C.ROSE_50),
+    rule('Result', 'LEFT(' + res + ',5)="Stale"', C.ROSE_50),
+    rule('Result', 'OR(LEFT(' + res + ',7)="Written",LEFT(' + res + ',5)="Added")', C.GREEN_50),
+  ]);
+  rosterProtect_(sheet, null, '🪪 Roster Review — derived by the roster tools; only the Decision, Manual, override and Notes columns are yours');
+  sheet.getRange('A1').setNote(
+    'Derived by 🪪 Roster → Preview matches; nothing here changes 🪪 Teachers until you choose Apply decisions.\n' +
+    'Link: Email (importHR account), Staff Code (HR Database), Propose add (HR person not yet on the roster).\n' +
+    'Only these columns are yours: Decision · Manual Email / Code · Display Name override · Notes. A re-preview keeps them.\n' +
+    'Decision: Accept (candidate 1) · Pick 2 · Pick 3 · Enter email / Enter code (type it in Manual) · No email · Ignore.\n' +
+    'Confirmed-exact rows start as Accept unless a warning applies; nothing else is ever pre-filled.\n' +
+    'Apply writes only blank cells and re-checks everything against live data. A row with a Result is finished: ' +
+    'run Preview matches again to retry it.');
+  trimColumnsOnly_(sheet, width);
+  rosterHideIfUnused_(sheet, REVIEW_DATA_START);
+}
+
 /**
  * The roster tabs, in the shape upgradeTabs() loops over: [name, builder].
  * Settings first, because the Teachers colours point at the Categories block.
@@ -661,6 +732,7 @@ function rosterTabBuilders_() {
     [SS.ROSTER, writeRosterTab_],
     [SS.SYNC_PREVIEW, writeSyncPreviewTab_],
     [SS.ROSTER_LOG, writeRosterLogTab_],
+    [SS.ROSTER_REVIEW, writeRosterReviewTab_],
   ];
 }
 

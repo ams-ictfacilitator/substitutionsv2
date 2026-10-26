@@ -25,6 +25,7 @@ const SS = {
   ROSTER_SETTINGS: '🧭 Roster Settings',
   SYNC_PREVIEW:    '🧾 Sync Preview',
   ROSTER_LOG:      '🪪 Roster Log',
+  ROSTER_REVIEW:   '🪪 Roster Review',
   BACKFILL_PREVIEW: '🧾 Backfill Preview',
 };
 
