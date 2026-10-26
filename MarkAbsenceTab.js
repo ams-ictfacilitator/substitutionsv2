@@ -96,6 +96,7 @@ function onEditInstallable(e) {
     var sheet = e.range.getSheet();
     var tabName = sheet.getName();
     if (tabName === SS.ROSTER || tabName === SS.ROSTER_SETTINGS) { rosterOnEdit_(e); return; }
+    if (tabName === SS.NON_TEACHING) { nonTeachingOnEdit_(e); return; }
     if (tabName !== SS.MARK_ABSENCE) return;
     if (e.range.getRow() !== ML.ACTION_R || e.range.getColumn() !== ML.ACTION_C) return;
     var v = norm_(e.value);

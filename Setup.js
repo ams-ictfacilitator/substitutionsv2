@@ -62,7 +62,8 @@ function upgradeTabs() {
     [SS.ABSENCE, writeAbsenceRegisterTab_], [SS.RULES, writeRulesTab_],
     [SS.BLOCKS, writeBlocksTab_], [SS.REPORTS, writeReportsTab_],
     [SS.IMPORT_HR, writeImportHrTab_], [SS.HELP, writeHelpTab_],
-  ].concat(rosterTabBuilders_());   // 🪪 roster tabs: created if missing, never rebuilt (RosterTabs.js)
+  ].concat(rosterTabBuilders_())   // 🪪 roster tabs: created if missing, never rebuilt (RosterTabs.js)
+   .concat([[SS.NON_TEACHING, writeNonTeachingTab_]]);   // 🗓️ non-teaching absence: same rule, built after Settings
   for (var i = 0; i < builders.length; i++) {
     if (ss.getSheetByName(builders[i][0])) continue;
     ss.insertSheet(builders[i][0]);
@@ -284,6 +285,7 @@ function setupAllTabs() {
   writeImportHrTab_();
   writeHelpTab_();
   ensureRosterTabs_();       // create-if-missing only: a rebuild must never touch the roster tabs
+  ensureNonTeachingTab_();   // same rule: holds typed rows, so never rebuilt
   clearCache();
   try { renderPool_(); renderFairness_(); renderAnalyticsTab_(); } catch (e) { /* source not connected yet */ }
   ensureAbsenceTrigger_();   // enable tick-to-run on the Mark Leave tab
@@ -511,6 +513,7 @@ function writeHelpTab_() {
     ['Notifications', 'A rich card is posted to your Chat space webhook. Optionally email each substitute (add emails in 👥 importHR) or send 1:1 DMs (needs a Chat bot — see below).'],
     ['Direct messages (advanced)', 'Webhooks only post to the space, not DMs. For 1:1 messages: link a Cloud project, enable the Google Chat API, add the "Google Chat API" service (Services ➕), and make sure appsscript.json oauthScopes include …/chat.spaces and …/chat.messages — then RE-RUN and approve the new permissions (a missing scope is the usual cause of "permissions are not sufficient"). DMs are sent AS the account running the script, so run it as your automations account. Put Chat IDs in importHR col C, set "Send Direct Messages" = TRUE, and test with 💬 Test Chat DM.'],
     ['Getting Chat user IDs', 'A Chat user ID (users/123…) IS the person\'s Workspace Directory id. Your own: 🔁 Substitutions → 🆔 Show my Chat ID (People API, no admin). Everyone at once: 👥 Import HR from Directory (Workspace admin) fills the importHR tab with name + email + Chat id. Both need their advanced service added once (Services ➕): People API / Admin SDK API. Then run 💬 Test Chat DM.'],
+    ['Non-teaching absence', 'Admin, Support Staff and Resource Person absences go in the 🗓️ Non-Teaching Absence tab, not through the substitution engine. Type a Date, pick a Teacher from the list, pick an Absence Type. Staff Code, Category, Staff Email, Timestamp and Marked By fill themselves from 🪪 Teachers. Amber means a key is missing; grey means none is expected (Resource Persons are matched on name only). Red rows are duplicates and are never deleted. Nothing here causes cover to be assigned.'],
     ['Re-running a day', 'Re-marking the same teacher on the same date replaces their earlier rows. Use 🔁 Substitutions → Clear a date\'s assignments to wipe a date entirely.'],
     ['"No substitute free — protected by the free-period guard"', 'A ⚖️ Rules row can protect teachers with few free periods from being loaded up with cover, e.g. someone with only 1 free period that day gets 0 substitutions. It looks at her timetable and duty roster for the day, not at cover already given out, so it can\'t be dodged by assigning her first. It\'s a hard limit, same as a floor limit — if it leaves nobody free, the period shows as uncovered and the reason names the guard.'],
     ['A teacher says they never get substitutions', 'Run the substitution analytics report (🔁 Substitutions menu, or check the 🔎 Analytics tab) and look them up in the equity table. If they show "Not in pool", they have no "Substitution" row in the Allotment — add one and give it a weight; that is the fix, not a code change. If they show "Never called" or "Below share" while in the pool, that is genuine under-use to look into. The report is diagnostic only — it does not change how substitutes are chosen, and it also shows each teacher\'s variety score, which speaks to the separate "always the same slot" complaint.'],
