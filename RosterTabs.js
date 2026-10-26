@@ -832,3 +832,49 @@ function ensureNonTeachingTab_() {
   try { writeNonTeachingTab_(); } catch (e) { Logger.log('build ' + SS.NON_TEACHING + ': ' + e.message); }
   return true;
 }
+
+/* ───────── 🧾 Backfill Preview (T-017; the logic lives in Backfill.js) ───────── */
+
+const BACKFILL_PREVIEW_HEADERS = ['Tab', 'Row', 'Date', 'Teacher', 'Run ID (Register only)', 'Current Staff Code',
+  'Proposed Staff Code', 'Current Staff Email', 'Proposed Staff Email', 'Action', 'Code Action', 'Email Action', 'Result'];
+const BACKFILL_DATA_START = 3;                       // row 1 = title, row 2 = headers
+
+/**
+ * Build the tab's chrome: title, headers (row 2, by name), widths, frozen header, text
+ * formats, note. Never clears a cell and never trims a column, so it is safe to re-run.
+ */
+function writeBackfillPreviewTab_() {
+  var sheet = sheet_(SS.BACKFILL_PREVIEW);
+  if (!sheet) return;
+  var H = BACKFILL_PREVIEW_HEADERS;
+  if (norm_(sheet.getRange(1, 1).getValue()) === '') titleBand_(sheet, '🧾 Backfill Preview', H.length);
+  var at = ensureHeaderRow_(sheet, 2, H);
+  var width = 0;
+  H.forEach(function (h) { width = Math.max(width, at[rosterHeaderKey_(h)]); });
+  rosterStyleHeader_(sheet, 2, 1, width);
+  var widths = { 'Tab': 150, 'Row': 55, 'Date': 90, 'Teacher': 200, 'Run ID (Register only)': 130, 'Current Staff Code': 110,
+    'Proposed Staff Code': 110, 'Current Staff Email': 200, 'Proposed Staff Email': 200, 'Action': 150,
+    'Code Action': 140, 'Email Action': 150, 'Result': 260 };
+  H.forEach(function (h) { sheet.setColumnWidth(at[rosterHeaderKey_(h)], widths[h]); });
+  sheet.setFrozenRows(2);
+  var rows = Math.max(1, sheet.getMaxRows() - BACKFILL_DATA_START + 1);
+  ['Date', 'Current Staff Code', 'Proposed Staff Code'].forEach(function (h) {
+    sheet.getRange(BACKFILL_DATA_START, at[rosterHeaderKey_(h)], rows, 1).setNumberFormat('@');
+  });
+  sheet.getRange('A1').setNote(
+    'Derived by 🪪 Roster → Preview backfill; nothing here is typed by hand. Every row of 🗓️ Absence Register and the ' +
+    'non-teaching absence tab is checked; rows already filled are counted in the title, not listed.\n' +
+    'Will fill = a blank cell that the roster can fill (locked code, confirmed email). Name only = Resource Person: never a code or email, by design.\n' +
+    'Apply backfill fills only those blank cells, backs up the workbook first, and records each line in Result. Re-run it to resume.');
+  rosterHideIfUnused_(sheet, BACKFILL_DATA_START);
+}
+
+/** Create the tab if missing (and build only that). Returns true when it was created. */
+function ensureBackfillPreviewTab_() {
+  var ss = ss_();
+  if (ss.getSheetByName(SS.BACKFILL_PREVIEW)) return false;
+  ss.insertSheet(SS.BACKFILL_PREVIEW);
+  try { writeBackfillPreviewTab_(); } catch (e) { Logger.log('build ' + SS.BACKFILL_PREVIEW + ': ' + e.message); }
+  return true;
+}
+

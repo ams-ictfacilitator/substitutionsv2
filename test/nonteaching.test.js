@@ -333,7 +333,7 @@ const sheetRun = (t, e) => t.run(`__book.sheets[${J(NT)}]${e}`);
   const files = fs.readdirSync(ROOT).filter(f => f.endsWith('.js'));
   const src = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
   const readers = files.filter(f => /SS\.NON_TEACHING|NON_TEACHING_HEADERS|NON_TEACHING_DATA_START|Non-Teaching Absence/.test(src(f)));
-  const allowed = ['Constants.js', 'AbsenceRegister.js', 'RosterTabs.js', 'Roster.js', 'Setup.js', 'MarkAbsenceTab.js'];
+  const allowed = ['Constants.js', 'AbsenceRegister.js', 'RosterTabs.js', 'Roster.js', 'Setup.js', 'MarkAbsenceTab.js', 'Backfill.js'];   // Backfill.js: T-017 reads the tab to fill blank keys (R22a)
   check('R25 only the definition, builder, onEdit and wiring files mention the tab', readers.every(f => allowed.includes(f)), J(readers));
   const engine = ['Assign.js', 'MatchEngine.js', 'Pool.js', 'Log.js', 'Rules.js', 'DataSource.js', 'Reports.js', 'ReportData.js', 'ReportRender.js',
     'Analytics.js', 'AnalyticsData.js', 'AnalyticsRender.js', 'AnalyticsTab.js', 'Dashboard.js', 'Chat.js', 'HR.js', 'HRDirectory.js', 'Config.js', 'Code.js'];
