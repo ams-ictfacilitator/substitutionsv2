@@ -11,6 +11,8 @@ result to an audit log, and posts a card to a Google Chat space.
 main workbook with `SpreadsheetApp.openById()` and never writes to it. All of its own
 state lives in its own workbook, in the `🗂️ Log` tab.
 
+**Staff roster.** Every absence row now carries two join keys for One Way, `Staff Code` and `Staff Email`, taken from the `🪪 Teachers` roster. Operations guide: [docs/ROSTER-OPS.md](docs/ROSTER-OPS.md). Design and requirements: [docs/PRD-roster.md](docs/PRD-roster.md).
+
 ---
 
 ## 1. At a glance
@@ -153,7 +155,7 @@ idx 1+ (col B+) — one cell per day/period, day-major:
 
 ## 5. Tabs in this workbook
 
-Built idempotently by `setupAllTabs()` in the order below.
+`upgradeTabs()` (the safe path) creates only the tabs that are missing. `setupAllTabs()` is the guarded, destructive rebuild and is never run on a live workbook.
 
 | Tab | Built by | Purpose |
 |---|---|---|
@@ -163,7 +165,14 @@ Built idempotently by `setupAllTabs()` in the order below.
 | `🔁 Substitution Pool` | `renderPool_()` | The weighted rotation + live week/term usage. Regenerated on every commit. |
 | `📊 Fairness` | `renderFairness_()` | KPI strip + per-teacher load vs fair share, with text bars. Regenerated on every commit. |
 | `🗂️ Log` | `writeLogTab_()` | **Source of truth for cover.** Row 1 title, row 2 headers, data from row 3. |
-| `🗓️ Absence Register` | `writeLeaveRegisterTab_()` | **Source of truth for leave.** One row per teacher-day, including absences that needed no cover. |
+| `🗓️ Absence Register` | `writeAbsenceRegisterTab_()` | **Source of truth for leave.** One row per teacher-day, including absences that needed no cover. Columns are found by header name. Columns 1–16 are the original layout; `Staff Email` (17) and `Staff Code` (18) are the join keys One Way reads. They are appended by `refreshLabels_()` and written at mark time from the roster. |
+| `🪪 Teachers` | `writeRosterTab_()` | Staff roster: one row per person, joined on Staff Code. Teaching rows come only from the Allotment. See [docs/ROSTER-OPS.md](docs/ROSTER-OPS.md). |
+| `🧭 Roster Settings` | `writeRosterSettingsTab_()` | Roster categories, HR Database source and header names, placeholder values, allow list and exclusions. |
+| `🧾 Sync Preview` | `writeSyncPreviewTab_()` | Allotment-versus-roster changes, each with a Decision. Hidden until first used. |
+| `🪪 Roster Review` | `writeRosterReviewTab_()` | Email, Staff Code and Propose add decisions. Hidden until first used. |
+| `🪪 Roster Log` | `writeRosterLogTab_()` | Append-only audit trail of roster changes. |
+| `🧾 Backfill Preview` | `writeBackfillPreviewTab_()` | What the backfill would fill in Register and non-teaching rows. Hidden until first used. |
+| `🗓️ Non-Teaching Absence` | `writeNonTeachingTab_()` | Absence of non-teaching staff. Never read by cover, reports or analytics. |
 | `📄 Reports` | `writeReportsTab_()` | Index of generated weekly reports, newest first, each linking to its PDF. Also indexes the analytics PDF (§14). |
 | `🔎 Analytics` | `renderAnalyticsTab_()` | Live analytics over the whole log (§14). Rebuilt on demand only, never on a trigger. |
 | `👥 importHR` | `writeImportHrTab_()` | Name / Email / Chat ID. Row 1 title, row 2 headers, data from row 3. |
@@ -404,9 +413,12 @@ The trigger is installed idempotently by `ensureAbsenceTrigger_()`, called from
 installation fails, the menu path (`📝 Mark-Leave tab → Preview / Assign & notify`)
 still works.
 
-Teacher dropdowns are refreshed from the live allotment by
-`refreshLeaveTabTeacherList_()`, with `setAllowInvalid(true)` so a name that has drifted
-from the allotment can still be typed.
+The teacher dropdown is refreshed by `refreshAbsenceTabTeacherList_()` from
+`getMarkableTeachers_()`: the Allotment teachers, minus roster rows marked Active = FALSE.
+It fails open: a teacher with no roster row is still offered, with a roster warning shown
+on the grid status. It keeps `setAllowInvalid(true)`, so a name that has drifted from the
+Allotment can still be typed. The Allotment itself is still the authority on who teaches
+(`getAllTeachers()` is unchanged).
 
 ---
 
@@ -914,10 +926,12 @@ to grow the grid first. `trimColumns_()` is retained for fixed-size layout tabs 
 **An existing sheet still carries the old 200-row cap** until `🛠️ Build / rebuild all
 tabs` is run — but `ensureRows_()` now grows it on the next write regardless.
 
-### 15.2 No `LockService` anywhere
+### 15.2 No lock on the Mark Absence commit
 Two coordinators committing at the same moment can interleave: both read the same log
 snapshot, both compute against stale usage, both delete-and-append. Result: double
-bookings or lost rows. `commitPlan()` is the natural place for a script lock.
+bookings or lost rows. `commitPlan()` is the natural place for a script lock. The roster
+tools already take one (`withRosterLock_()`, used by Apply sync, Apply decisions, Apply
+backfill, Correct Staff Code and the first-set lock), but the commit path still does not.
 
 ### 15.3 `hrLookup_()` prefix matching can mis-route email and DMs — FIXED (T-015)
 Replaced by `resolveContact_()` (exact name only, roster first). Original description:
@@ -998,6 +1012,12 @@ added there too, not in the editor.
 - The side panel has no entry point to the weekly report; it lives on the menu only.
 - `readReportRows_()` re-reads the `📄 Reports` tab on each call and is not memoised
   (it is called two or three times per generation).
+
+### 15.14 Staff roster: open items
+The roster has its own list of known limitations, in [docs/ROSTER-OPS.md §9](docs/ROSTER-OPS.md).
+Among them: the roster has not been run on a live Sheet; the Roster Settings tab has no
+protection set by the code; and the grid and panel text says "run 🪪 Sync roster", which
+is not a menu item (use Preview sync, then Apply sync).
 
 ---
 
