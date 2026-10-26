@@ -13,6 +13,8 @@
  *   lockNewStaffCodes_()      first-set lock of hand-entered codes
  *   correctStaffCode_()       the only way to change a code once set
  *   rosterJoinKeys_()         the keys other code may write (locked code, confirmed email)
+ *   getMarkableTeachers_()    Allotment teachers minus Active = FALSE, fail-open (T-014)
+ *   rosterWarnings_()         counts + names of roster gaps among them, never blocking (T-014)
  *   computeRosterCheck_()     🧪 Check roster, pure
  *
  * Every write is under the script lock, batched (one call per column), and
@@ -236,6 +238,88 @@ function rosterNameCounts_(rows) {
   var n = {};
   rows.forEach(function (r) { if (r.name) n[r.name] = (n[r.name] || 0) + 1; });
   return n;
+}
+
+/* ───────── markable teachers and warnings (PRD D1, D2, R12, R13) ───────── */
+
+/** { name: true } for every Allotment-style name whose roster rows are ALL Active = FALSE. */
+function rosterInactiveNames_(rows) {
+  var any = {}, active = {};
+  rows.forEach(function (r) { if (r.name) { any[r.name] = true; if (r.active) active[r.name] = true; } });
+  var out = {};
+  Object.keys(any).forEach(function (n) { if (!active[n]) out[n] = true; });
+  return out;
+}
+
+/**
+ * The names the grid dropdown and the side panel offer: the Allotment teachers
+ * (getAllTeachers(), the authority) minus roster rows marked Active = FALSE.
+ * FAIL-OPEN: a teacher with no roster row is still offered, and a missing or
+ * unreadable roster returns the plain Allotment list. A duplicated name is
+ * hidden only if every row carrying it is inactive. Roster problems never
+ * throw; an Allotment failure does (callers already report "source not connected").
+ */
+function getMarkableTeachers_() {
+  var all = getAllTeachers();
+  var inactive = {};
+  try {
+    var roster = getRoster_();
+    if (roster && roster.exists && roster.rows) inactive = rosterInactiveNames_(roster.rows);
+  } catch (e) { inactive = {}; }
+  return all.filter(function (t) { return !inactive[norm_(t)]; });
+}
+
+/**
+ * Roster gaps among `teachers` (default: the markable list), as counts and
+ * names only (no codes, no emails):
+ *   { available, missingFromRoster, missingCode, missingEmail, duplicateNames }
+ * each { count, names }. Name-only categories (Resource Person) are never
+ * counted for code or email (D11). Never throws; never blocks marking.
+ */
+function rosterWarnings_(teachers) {
+  var empty = function () { return { count: 0, names: [] }; };
+  var w = { available: false, missingFromRoster: empty(), missingCode: empty(), missingEmail: empty(), duplicateNames: empty() };
+  var add = function (k, n) { w[k].names.push(n); w[k].count++; };
+  try {
+    var roster = getRoster_();
+    if (!roster || !roster.exists || !roster.rows) return w;
+    var list = teachers || getMarkableTeachers_();
+    w.available = true;
+    var settings = readRosterSettings_();
+    var counts = rosterNameCounts_(roster.rows), byName = {};
+    roster.rows.forEach(function (r) { if (r.name && !byName[r.name]) byName[r.name] = r; });
+    list.forEach(function (t) {
+      var n = norm_(t), r = byName[n];
+      if (!r) { add('missingFromRoster', n); return; }
+      if (counts[n] > 1) { add('duplicateNames', n); return; }   // ambiguous: never guess which row is meant
+      var info = rosterCategoryInfo_(settings, r.category);
+      if (info.nameOnly) return;
+      if (!r.staffCode && !r.locked) add('missingCode', n);
+      if (info.emailRequired && !(r.matchStatus === 'Confirmed' && r.email)) add('missingEmail', n);
+    });
+  } catch (e) { w.available = false; }
+  return w;
+}
+
+/** One-line summary of warnings for the grid status cell ('' when there is nothing to say). */
+function rosterWarningText_(w) {
+  if (!w || !w.available) return '';
+  var parts = [];
+  if (w.missingFromRoster.count) parts.push(w.missingFromRoster.count + ' not on the 🪪 Teachers roster (run 🪪 Sync roster)');
+  if (w.missingCode.count) parts.push(w.missingCode.count + ' without a Staff Code');
+  if (w.missingEmail.count) parts.push(w.missingEmail.count + ' without a confirmed email');
+  if (w.duplicateNames.count) parts.push(w.duplicateNames.count + ' with a duplicate roster name');
+  return parts.length ? '🪪 Roster: ' + parts.join(' · ') + '.' : '';
+}
+
+/** Names among `typed` that are in the roster but Active = FALSE. Never throws. */
+function rosterInactiveAmong_(typed) {
+  try {
+    var roster = getRoster_();
+    if (!roster || !roster.exists || !roster.rows) return [];
+    var inactive = rosterInactiveNames_(roster.rows);
+    return typed.filter(function (t) { return inactive[norm_(t)]; });
+  } catch (e) { return []; }
 }
 
 /* ───────── writing (all under the script lock) ───────── */

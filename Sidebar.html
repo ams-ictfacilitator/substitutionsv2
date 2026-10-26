@@ -85,6 +85,7 @@
   </div>
 
   <div id="srcErr" class="note err hide"></div>
+  <div id="rosterWarn" class="note hide"></div>
 
   <div class="step">
     <div class="label"><span class="num">1</span> Date</div>
@@ -136,6 +137,20 @@
     buildPeriodPicker();
     if(b.sourceErr){ $('srcErr').className='note err'; $('srcErr').textContent='⚠️ '+b.sourceErr; }
     renderChannels();
+    renderRosterWarn(b.rosterWarnings);
+  }
+
+  // Amber, informational only: never blocks marking (PRD D2). Counts and names, no codes or emails.
+  function renderRosterWarn(w){
+    var n=$('rosterWarn'), p=[];
+    if(!w || !w.available){ n.className='note hide'; return; }
+    function add(k,msg){ if(w[k] && w[k].count) p.push(w[k].count+' '+msg+' ('+w[k].names.slice(0,5).join(', ')+(w[k].count>5?', …':'')+')'); }
+    add('missingFromRoster','not on the 🪪 Teachers roster yet — run 🪪 Sync roster');
+    add('missingCode','without a Staff Code');
+    add('missingEmail','without a confirmed email');
+    add('duplicateNames','with a duplicate roster name');
+    if(!p.length){ n.className='note hide'; return; }
+    n.className='note'; n.textContent='🪪 Roster: '+p.join(' · ');
   }
 
   // Options come from ABSENCE_TYPES on the server, grouped by category, so the
