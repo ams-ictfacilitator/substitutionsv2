@@ -176,7 +176,8 @@ function quickMark() {
   var out = uiCommit(dateStr, parts, ABSENCE_TYPES[0].id, null);
   if (!out.ok) { ui.alert('Could not assign', out.error, ui.ButtonSet.OK); return; }
   toast_(out.assigned + ' assigned' + (out.unassigned ? ', ' + out.unassigned + ' unassigned' : '') +
-         (out.notified ? ' · notified' : ''), '✅', 8);
+         (out.notified ? ' · notified' : '') +
+         notifyNotesText_(out), '✅', 8);
 }
 
 function clearDatePrompt() {
