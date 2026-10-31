@@ -170,7 +170,7 @@ None of these stores updates itself when the spelling changes elsewhere. That is
 - These are the approximate headers seen so far. They are **not** confirmed exactly, which is why every header is configurable:
   - `Status` (e.g. `Current`)
   - `All four names accurate`
-  - `Category` (e.g. `Teaching staff`, `Administration`, `Support staff`)
+  - `Category` (e.g. `Teaching staff`, `Administrative staff`, `Support staff`)
   - `Title`
   - `Name of the Staff`
   - `Team / Role`
@@ -288,7 +288,7 @@ Roster setup leaves the column blank. Codes are filled by accepting HR Database 
 | HR Database value (default) | Roster Category |
 |---|---|
 | Teaching staff | Teaching |
-| Administration | Admin |
+| Administrative staff | Admin |
 | Support staff | Support Staff |
 | Resource Person | Resource Person |
 

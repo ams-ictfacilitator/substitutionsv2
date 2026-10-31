@@ -53,8 +53,11 @@ check('code ok / warning / none', call('matchCodeCheck', 'S0101', S).status === 
 check('pattern is settings-driven', call('matchCodeCheck', 'X12', Object.assign(D(), { staffCodePattern: '^X[0-9]+$' })).status === 'ok');
 check('category info', call('matchCategoryInfo', 'resource person', S).nameOnly === true && call('matchCategoryInfo', 'Support Staff', S).emailRequired === false &&
   call('matchCategoryInfo', 'Teaching', S).teaching === true);
-check('HR category mapping ignores case/space', call('matchMapHrCategory', '  administration ', S).roster === 'Admin' &&
+check('HR category mapping ignores case/space', call('matchMapHrCategory', '  administrative   STAFF ', S).roster === 'Admin' &&
   call('matchMapHrCategory', 'Volunteers', S).unmapped === true);
+check('T-021 default mapping: "Administrative staff" (any case/spacing) -> Admin; the old "Administration" is no longer mapped',
+  ['Administrative staff', '  ADMINISTRATIVE   Staff ', 'administrative staff'].every(v => call('matchMapHrCategory', v, S).roster === 'Admin') &&
+  call('matchMapHrCategory', 'Administration', S).unmapped === true);
 check('duplicate codes ignore placeholders and non-Current', (() => {
   const recs = [
     { status: 'Current', staffCode: 'N/A' }, { status: 'Current', staffCode: 'N/A' }, { status: 'Current', staffCode: '-' }, { status: 'Current', staffCode: '' },
@@ -230,24 +233,24 @@ const H = (status, name, category, staffCode, officialEmail, extra) =>
 const hr = [
   H('Current', 'Asha Example', 'Teaching staff', 'S0101', 'asha.example@school.example'),     // corroborated
   H('Current', 'Ravi Sample', 'Teaching staff', 'S0102', 'ravi.other@school.example'),         // corroboration conflict
-  H('Current', 'Tara Example', 'Administration', 'X12', 'N/A'),                                // pattern failure
+  H('Current', 'Tara Example', 'Administrative staff', 'X12', 'N/A'),                                // pattern failure
   H('Current', 'Wanda Support', 'Support staff', 'W0201', 'n/a'),
   H('Current', 'Sita Example', 'Support staff', 'N/A', 'N/A'),                                  // placeholder code
   H('Current', 'Gita Example', 'Support staff', 'n/a', '-'),
   H('Current', 'Rita Example', 'Support staff', 'TBD', ''),
-  H('Current', 'Nila Example', 'Administration', '-', 'N/A'),
+  H('Current', 'Nila Example', 'Administrative staff', '-', 'N/A'),
   H('Current', 'Ravi Consultant', 'Resource Person', 'S0999', 'ravi.consultant@school.example'),   // has a code: never taken
   H('Current', 'Uma Consultant', 'Resource Person', 'N/A', 'N/A'),
   H('Current', 'Vik Consultant', 'Resource Person', 'N/A', 'N/A'),
-  H('Left', 'Old Admin', 'Administration', 'S0777', ''),                                         // not Current
+  H('Left', 'Old Admin', 'Administrative staff', 'S0777', ''),                                         // not Current
   H('Current', 'Odd Category', 'Volunteers', 'S0888', ''),                                       // unmapped
   H('Current', 'Teach Only', 'Teaching staff', 'S0555', ''),                                     // teaching: never proposed
-  H('Current', 'Dup One', 'Administration', 'S0300', ''),
-  H('Current', 'Dup Two', 'Administration', 'S0300', ''),
+  H('Current', 'Dup One', 'Administrative staff', 'S0300', ''),
+  H('Current', 'Dup Two', 'Administrative staff', 'S0300', ''),
   H('Current', 'Priya One', 'Teaching staff', 'S0601', ''),
   H('Current', 'Priya Two', 'Teaching staff', 'S0602', ''),
   H('Current', 'Priya Four', 'Teaching staff', 'S0604', ''),
-  H('Current', 'Hana Kumar', 'Administration', 'S0701', ''),                                     // roster has two rows that hit it
+  H('Current', 'Hana Kumar', 'Administrative staff', 'S0701', ''),                                     // roster has two rows that hit it
 ];
 hr.forEach((r, i) => r.row = i + 2);
 const roster2 = [
@@ -355,22 +358,22 @@ check('Propose add: placeholder-code rows proposed with a blank code, no N/A any
 check('Propose add: Resource Persons carry no code or email even if present', pn('Uma Consultant') && pn('Uma Consultant').nameOnly && pn('Uma Consultant').staffCode === '' && pn('Uma Consultant').officialEmail === '' &&
   (() => { const r = call('matchProposeAdds', [H('Current', 'Rana Consultant', 'Resource Person', 'S0998', 'rana@example.test')], [], S).proposals[0]; return r.staffCode === '' && r.officialEmail === '' && r.codeStatus === 'Name only'; })());
 check('Propose add: Admin keeps code, dept, team, official email', (() => {
-  const r = call('matchProposeAdds', [H('Current', 'Nia Example', 'Administration', 's0123', 'Nia@Example.Test')], [], S).proposals[0];
+  const r = call('matchProposeAdds', [H('Current', 'Nia Example', 'Administrative staff', 's0123', 'Nia@Example.Test')], [], S).proposals[0];
   return r.staffCode === 'S0123' && r.officialEmail === 'nia@example.test' && r.department === 'Dept X' && r.teamRole === 'Role X' && r.category === 'Admin' && r.link === 'Propose add';
 })());
 check('Propose add: shared codes and pattern failures are flagged', pn('Dup Two') && /shared/.test(pn('Dup Two').flags.join()) &&
-  /Pattern/.test(call('matchProposeAdds', [H('Current', 'Pat Example', 'Administration', 'Z1', '')], [], S).proposals[0].flags.join()));
+  /Pattern/.test(call('matchProposeAdds', [H('Current', 'Pat Example', 'Administrative staff', 'Z1', '')], [], S).proposals[0].flags.join()));
 check('Propose add: two Resource Persons with one name are flagged', (() => {
   const r = call('matchProposeAdds', [H('Current', 'Sam Consult', 'Resource Person', 'N/A', 'N/A'), H('Current', 'Sam Consult', 'Resource Person', 'N/A', 'N/A')], [], S);
   return r.proposals.length === 2 && r.proposals.every(p => /shared with another/.test(p.flags.join()));
 })());
 check('Propose add: category mapping comes from settings (R11)', (() => {
-  const s = D(); s.hrCategoryMap = [{ hr: 'Administration', roster: 'Teaching' }];
-  return call('matchProposeAdds', [H('Current', 'Nia Example', 'Administration', 'S0123', '')], [], s).proposals.length === 0;
+  const s = D(); s.hrCategoryMap = [{ hr: 'Administrative staff', roster: 'Teaching' }];
+  return call('matchProposeAdds', [H('Current', 'Nia Example', 'Administrative staff', 'S0123', '')], [], s).proposals.length === 0;
 })());
 check('Propose add: Status filter comes from settings', (() => {
   const s = D(); s.statusFilter = ['Current', 'Probation'];
-  return call('matchProposeAdds', [H('Probation', 'Nia Example', 'Administration', 'S0123', '')], [], s).proposals.length === 1;
+  return call('matchProposeAdds', [H('Probation', 'Nia Example', 'Administrative staff', 'S0123', '')], [], s).proposals.length === 1;
 })());
 check('Propose add counts by category', P0.counts['Support Staff'] === 4 && P0.counts['Resource Person'] === 3 && P0.counts.Admin === 5);
 check('Resource Person full pass: blank code and email, zero write offers (R36)', (() => {
@@ -391,3 +394,9 @@ check('Resource Person full pass: blank code and email, zero write offers (R36)'
 
 // ── purity ──────────────────────────────────────────────────────────────
 check('engine source has no Apps Script service calls', !/SpreadsheetApp|CacheService|PropertiesService|UrlFetchApp|Logger\./.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'MatchEngine.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')));
+
+check('T-021 matchProposeAdds returns a count per unmapped category value (values only)', (() => {
+  const r = call('matchProposeAdds', [H('Current', 'A One', 'Volunteers', 'S0801', ''), H('Current', 'A Two', 'Volunteers', 'S0802', ''),
+    H('Current', 'A Three', 'Interns', 'S0803', '')], [], S);
+  return JSON.stringify(r.unmappedCounts) === '{"Volunteers":2,"Interns":1}' && r.unmapped.join() === 'Interns,Volunteers';
+})());

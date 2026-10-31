@@ -16,6 +16,7 @@ Cross-review rule: Sonnet reviews Codex, Codex reviews Sonnet. Codex and Antigra
 | T-017 Backfill | Q2 live-data write | sonnet | no | 1 (resumed after rate limit) | 863 | sonnet PASS; mutation-checked | merged #27 |
 | T-013 Review and Apply | Q2 identity | sonnet | no | 2 (resumed after rate limit) | 1006 | sonnet FAIL (rebased decision, wiped rows on outage) then PASS | merged #28 |
 | T-019 Docs | Q4 | haiku | no | 1 | 1006 | not cross-reviewed (docs) | this PR |
+| T-021 Category default, unmapped info rows, dropdown refresh | Q2 roster data | sonnet | no | 1 (worker died when the machine slept; edits intact) | 1018 | sonnet PASS; revert-checked | merged (live-rollout finding 2026-10-30) |
 
 ## Known issues carried forward (not blocking)
 - T-010: `ensureAbsenceKeyNotes_` does per-cell note calls for two header cells.

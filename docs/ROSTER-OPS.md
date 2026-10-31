@@ -87,6 +87,9 @@ Display Names are never edited by a tool, and an edited name is flagged as "prob
 2. Check the category and the Display Name. For a Resource Person, make sure the name is unique: it is their only key, and it cannot be changed later. If two people share a name, type a distinguishing name in **Display Name override** (for example, an initial).
 3. Type **Accept** in Decision, then `🪪 Roster → ✅ Apply decisions`.
 4. The new row is written with Category, Department and Team. An Admin or Support Staff row also gets the HR Database code, if it is valid and not already in use. **Resource Person rows never get a code or an email**, even if the HR Database holds one.
+5. The Non-Teaching Absence Teacher dropdown is refreshed by Apply, so the new person can be picked straight away.
+
+**HR Category mapping must match the HR sheet's spelling.** `🧭 Roster Settings → HR Category mapping` links each HR Category value to a roster category. The shipped default for admin staff is `Administrative staff` (it was `Administration` before; existing sheets keep whatever they already have, so check yours). Case and extra spaces do not matter, but the words must. A Current HR person whose category is not in the mapping cannot be proposed. After Preview matches, each such category shows as an information row on `🪪 Roster Review` (Link Propose add, Class Unmapped category) with a count and no names. Add a mapping row for it and Preview again; the information row goes away. An information row cannot be applied.
 
 **If the person is not in the HR Database:**
 1. Add a row on `🪪 Teachers`: Display Name (unique, spelled exactly as you will type it on the Non-Teaching tab), Category (Admin, Support Staff or Resource Person), Active ticked.
@@ -360,6 +363,7 @@ Messages are quoted as the code shows them. The grid status and the side panel u
 | Non-teaching: red row | A duplicate Date and Staff Code (or Date and Teacher). | Check it. Clear it yourself if it is a mistake. |
 | Non-teaching: keys do not fill in | The installable trigger is missing. | `🔧 Upgrade tabs (safe)`, or `🔁 Substitutions → 📝 Mark-Absence tab → ⚡ Enable tick-to-run`. |
 | Non-teaching: a name is missing from the dropdown | The person is not Active, is not on the roster, or is in the Teaching category. | Check the roster row. |
+| Review: an "Unmapped category" information row | Current HR people have a category that is not in the HR Category mapping, so they are never proposed. | Add a mapping row on `🧭 Roster Settings` using the HR sheet's exact spelling, then Preview matches again. |
 | "Could not save a backup" / "the backup could not be saved" | Drive could not save the copy. | Nothing was changed. Try again later, or take the backup by hand first. |
 | "Roster Settings has no teaching category" / "exactly one row with Teaching? = TRUE" | The Categories table lost its Teaching row. | Restore the row, with Teaching? TRUE for Teaching only. |
 | "Category X is not in the Categories table" | A category is misspelt or blank. | Pick the category from the dropdown. |

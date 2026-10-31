@@ -108,13 +108,13 @@ const ROSTER = [
 const HR = [
   { name: 'Staff A', cat: 'Teaching staff', code: 'S0001', email: 'staff.a@example.test', dept: 'Maths', team: 'High School' },
   { name: 'Asha Example', cat: 'Teaching staff', code: 's0003', email: 'Asha.Example@example.test', dept: 'Science', team: 'High School' },
-  { name: 'Staff C', cat: 'Administration', code: 'S0004', email: 'N/A', dept: 'Office', team: 'Front desk' },
+  { name: 'Staff C', cat: 'Administrative staff', code: 'S0004', email: 'N/A', dept: 'Office', team: 'Front desk' },
   { name: 'Staff D', cat: 'Support staff', code: 'W0005', email: '', dept: 'Transport', team: 'Drivers' },
   { name: 'Consultant R', cat: 'Resource Person', code: 'N/A', email: 'n/a', dept: 'Arts', team: 'Visiting' },
   { name: 'Staff M', cat: 'Support staff', code: 'X123', email: '-', dept: 'Garden', team: 'Grounds' },
   // not on the roster
   { name: 'Staff E', cat: 'Support staff', code: 'W0006', email: '', dept: 'Garden', team: 'Grounds' },
-  { name: 'Staff F', cat: 'Administration', code: 'N/A', email: 'N/A', dept: 'Office', team: 'Accounts' },
+  { name: 'Staff F', cat: 'Administrative staff', code: 'N/A', email: 'N/A', dept: 'Office', team: 'Accounts' },
   { name: 'Consultant G', cat: 'Resource Person', code: 'N/A', email: 'N/A', dept: 'Arts' },
   { name: 'Consultant H', cat: 'Resource Person', code: 'W0099', email: 'consultant.h@example.test' },
   { name: 'Staff J', cat: 'Mystery', code: 'S0100' },
@@ -248,7 +248,7 @@ const TEACH = '🪪 Teachers', REV = '🪪 Roster Review', LOGT = '🪪 Roster L
   check('D11 a Resource Person exact match is shown but not pre-filled, and offers no code', t.rv('Staff Code|Consultant R', 'Decision') === '' && t.rv('Staff Code|Consultant R', 'Candidate 1 Value') === '');
   check('D11 a Resource Person has no Email row', (() => { try { t.run(`__reviewRowOf('Email|Consultant R')`); return false; } catch (e) { return true; } })());
   check('HR Category / Department / Team shown on a Staff Code row', t.rv('Staff Code|Staff C', 'HR Department') === 'Office' && t.rv('Staff Code|Staff C', 'HR Team/Role') === 'Front desk' &&
-    t.rv('Staff Code|Staff C', 'HR Category') === 'Administration');
+    t.rv('Staff Code|Staff C', 'HR Category') === 'Administrative staff');
   check('R32 Propose add lists Current non-teaching people not on the roster',
     ['Staff E', 'Staff F', 'Consultant G', 'Consultant H'].every(n => t.run(`__reviewRowOf('Propose add|${n}|')`) > 0));
   check('R32 an unmapped category, a Former row and a Teaching HR row are never proposed',
@@ -739,6 +739,70 @@ const TEACH = '🪪 Teachers', REV = '🪪 Roster Review', LOGT = '🪪 Roster L
   v.run('delete __book.sheets[SS.ROSTER_REVIEW]; __book.order = __book.order.filter(function(n){return n!==SS.ROSTER_REVIEW})');
   v.run('previewRosterMatches()');
   check('N5 a failing handler alerts plainly and pings Ops with the error class only', v.alerts().some(a => /Upgrade tabs/.test(a.body)) && v.run('__ops').length === 1 && v.run('__ops[0][1]') === 'Error');
+}
+
+
+/* ───────── T-021: unmapped-category information rows, and the Non-Teaching dropdown refresh ───────── */
+{
+  const UK = 'Propose add|(unmapped category)|';
+  const hr2 = HR.concat([{ name: 'Staff Q', cat: 'Mystery', code: 'S0301' }, { name: 'Staff R', cat: 'Interns', code: 'S0302' }]);
+  const t = mk({ hr: hr2 });
+  t.preview();
+  check('T-021 one info row per distinct unmapped category value, with the count',
+    /^2 current HR people have the category "Mystery"/.test(t.rv(UK + 'Mystery', 'Evidence')) &&
+    /^1 current HR person has the category "Interns"/.test(t.rv(UK + 'Interns', 'Evidence')) &&
+    t.rv(UK + 'Mystery', 'Display Name') === '(unmapped HR category)' && t.rv(UK + 'Mystery', 'Decision') === '');
+  const tab = t.tab(REV);
+  check('T-021 the info rows carry the category value and NO person data',
+    !/Staff J|Staff Q|Staff R|S0100|S0301|S0302/.test(t.rv(UK + 'Mystery', 'Evidence') + t.rv(UK + 'Interns', 'Evidence')) &&
+    !/S0301|S0302/.test(tab) && SENT.every(x => tab.indexOf(x) < 0));
+  t.preview(); t.preview();
+  const n = k => (t.tab(REV).match(new RegExp(k.replace(/[|()]/g, '\\$&') + '"', 'g')) || []).length;
+  check('T-021 re-preview does not stack the info rows', n(UK + 'Mystery') === 1 && n(UK + 'Interns') === 1);
+  t.run('__hr.failOpen = true');
+  t.preview();
+  check('T-021 when the HR Database is unreadable the stale info rows are dropped, not retained',
+    !/\(unmapped category\)/.test(t.tab(REV)) && t.rv('Staff Code|(unavailable)', 'Class') === 'Unavailable');
+  t.run('__hr.failOpen = false');
+  t.preview();
+  t.decide(UK + 'Mystery', 'Accept');
+  t.apply();
+  check('T-021 an info row cannot be applied', /^Refused.*information only/.test(t.result(UK + 'Mystery')));
+  t.run(`__addSettingRow('HR Category mapping', ['Mystery', 'Support Staff'])`);
+  t.preview();
+  check('T-021 a mapped category removes its info row (and proposes the person); the other stays',
+    (() => { try { t.run(`__reviewRowOf(${J(UK + 'Mystery')})`); return false; } catch (e) { return true; } })() &&
+    t.run(`__reviewRowOf('Propose add|Staff Q|')`) > 0 && /"Interns"/.test(t.rv(UK + 'Interns', 'Evidence')));
+}
+{
+  const NTV = `(function(){ var sh = __book.sheets[SS.NON_TEACHING], tc = 0; for (var c = 1; c <= sh.maxCols; c++) if (sh.cells['2,' + c] === 'Teacher') tc = c; var x = sh.validations.filter(function(e){ return e.c === tc && e.v && e.v.list; }); return x.length ? x[0].v.list : []; })()`;
+  const HOOK = `var __rf = 0, __rfOrig = refreshNonTeachingTeacherList_; refreshNonTeachingTeacherList_ = function () { __rf++; return __rfOrig(); };`;
+  const t = mk();
+  t.run('ensureNonTeachingTab_()'); t.run('refreshNonTeachingTeacherList_()');
+  t.preview();
+  check('T-021 before Apply the new person is not in the Teacher dropdown', t.run(NTV).indexOf('Staff E') < 0);
+  t.run(HOOK);
+  t.decide('Propose add|Staff E|', 'Accept');
+  t.apply();
+  check('T-021 Apply of a Propose add refreshes the dropdown once and it now lists the new person',
+    t.run('__rf') === 1 && t.run(NTV).indexOf('Staff E') > -1, J(t.run(NTV)));
+  const u = mk();
+  u.run('ensureNonTeachingTab_()'); u.preview();
+  u.run(`(function(){ var sh = sheet_(SS.ROSTER_REVIEW), c = __reviewCol('Decision'); for (var r = 3; r <= sh.getLastRow(); r++) delete sh.cells[r + ',' + c]; })()`);   // drop the pre-filled Accepts
+  u.run(HOOK);
+  u.decide('Propose add|Staff E|', 'Ignore');
+  u.decide('Email|Staff C', 'Enter email', 'not.in.directory@example.test');   // refused
+  const ures = u.apply();
+  check('T-021 no refresh when nothing was written (Ignore + refused rows)', u.run('__rf') === 0, J(ures.counts) + J(ures.results));
+  const w = mk();
+  w.run('ensureNonTeachingTab_()'); w.preview();
+  w.run(`refreshNonTeachingTeacherList_ = function () { throw new Error('boom'); };`);
+  w.decide('Propose add|Staff E|', 'Accept');
+  let failed = false, res = null;
+  try { res = w.apply(); } catch (e) { failed = true; }
+  check('T-021 a refresh failure does not fail the apply (row added, logged)',
+    !failed && !!w.row('Staff E') && /^Added/.test(w.result('Propose add|Staff E|')) && res && res.counts.added === 1 &&
+    w.run('__hr.logs').some(l => /non-teaching list: boom/.test(l)));
 }
 
 /* ───────── R34 / R36 / hygiene (grep-style) ───────── */

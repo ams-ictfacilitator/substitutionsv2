@@ -119,7 +119,7 @@ const throws = fn => { try { fn(); return false; } catch (e) { return true; } };
     eq(S.hrHeaders, { status: 'Status', name: 'Name of the Staff', category: 'Category', teamRole: 'Team / Role', department: 'Department',
       staffCode: 'Staff Code', officialEmail: 'Official email ID' }), J(S.hrHeaders));
   check('HR Category mapping is seeded', eq(S.hrCategoryMap.map(m => m.hrCategory + '>' + m.rosterCategory),
-    ['Teaching staff>Teaching', 'Administration>Admin', 'Support staff>Support Staff', 'Resource Person>Resource Person']));
+    ['Teaching staff>Teaching', 'Administrative staff>Admin', 'Support staff>Support Staff', 'Resource Person>Resource Person']));
   check('placeholder list is seeded (blank is implicit)', eq(S.placeholders, ['n/a', 'na', 'n/a', '-', 'none', 'nil', 'tbd']));
   check('exclusions and honorifics are seeded for the matching engine', S.exclusions.length === 8 &&
     S.exclusions.some(e => e.type === 'Honorific' && /Mr/.test(e.value)));
