@@ -102,7 +102,7 @@ function mk(rows, opts) {
 const STAFF = [
   { name: 'Staff A', code: 's0001', email: 'Staff.A@example.test', category: 'Teaching staff', dept: 'Maths', team: 'High School' },
   { name: 'Staff B', code: 'W0002', email: 'N/A', category: 'Support staff', dept: 'Transport', team: 'Drivers' },
-  { name: 'Staff C', code: 'N/A', email: 'staff.c@example.test', category: 'Administration', dept: 'Office', team: 'Front desk' },
+  { name: 'Staff C', code: 'N/A', email: 'staff.c@example.test', category: 'Administrative staff', dept: 'Office', team: 'Front desk' },
   { name: 'Staff D', status: 'Former', code: 'S0004', email: 'staff.d@example.test', category: 'Teaching staff' },
   { name: 'Staff E', code: ' S0005 ', email: '', category: 'Teaching staff' },
 ];
@@ -240,7 +240,7 @@ const STAFF = [
     { name: 'Staff F', code: '-', email: 'TBD', category: 'Support staff' },
     { name: 'Staff G', code: 'TBD', email: 'none', category: 'Support staff' },
     { name: 'Staff H', code: '', email: 'Nil', category: 'Support staff' },
-    { name: 'Staff I', code: 'NA', email: 'NA', category: 'Administration' },
+    { name: 'Staff I', code: 'NA', email: 'NA', category: 'Administrative staff' },
   ];
   const t = mk(rows);
   const res = t.read();

@@ -52,7 +52,7 @@ var MATCH_DEFAULTS = {
   ],
   hrCategoryMap: [
     { hr: 'Teaching staff',  roster: 'Teaching' },
-    { hr: 'Administration',  roster: 'Admin' },
+    { hr: 'Administrative staff', roster: 'Admin' },
     { hr: 'Support staff',   roster: 'Support Staff' },
     { hr: 'Resource Person', roster: 'Resource Person' }
   ],
@@ -690,7 +690,8 @@ function matchStaffCodeLinks(rosterRows, hrRecords, settings, opts) {
  * @param {Object[]} hrRecords
  * @param {Object[]} staffCodeResults  matchStaffCodeLinks(...).results
  * @param {Object}   settings
- * @return {{proposals:Object[], unmapped:string[], counts:Object}}
+ * @return {{proposals:Object[], unmapped:string[], unmappedCounts:Object, counts:Object}}
+ *   unmappedCounts: {categoryValue: number of Current HR people with it} (values only, never names)
  *   proposals[i]: {link:'Propose add', displayName, hrName, category, department, teamRole, staffCode,
  *     officialEmail, codeStatus, nameOnly, flags:[string], row, hrIndex}
  */
@@ -699,11 +700,11 @@ function matchProposeAdds(hrRecords, staffCodeResults, settings) {
   (staffCodeResults || []).forEach(function (res) { (res.hitIndexes || []).forEach(function (i) { linked[i] = true; }); });
   var dupSet = {};
   matchDuplicateCodes(recs, S).forEach(function (d) { dupSet[d.code] = true; });
-  var out = [], unmapped = {}, byCat = {}, nameCount = {};
+  var out = [], unmapped = {}, unmappedCounts = {}, byCat = {}, nameCount = {};
   recs.forEach(function (rec, idx) {
     if (!rec || !matchStatusOk_(rec, S) || linked[idx]) return;
     var map = matchMapHrCategory(rec.category, S);
-    if (map.unmapped) { unmapped[map.value] = true; return; }
+    if (map.unmapped) { unmapped[map.value] = true; unmappedCounts[map.value] = (unmappedCounts[map.value] || 0) + 1; return; }
     var cat = matchCategoryInfo(map.roster, S);
     if (cat.teaching) return;                              // Teaching rows come only from the Allotment
     var nameOnly = cat.nameOnly, chk = matchCodeCheck(rec.staffCode, S), flags = [], status = 'ok';
@@ -724,5 +725,5 @@ function matchProposeAdds(hrRecords, staffCodeResults, settings) {
   out.forEach(function (p) {
     if (nameCount[matchNormName(p.hrName, S)] > 1) p.flags.push('Name shared with another proposed row: give one a distinguishing Display Name');
   });
-  return { proposals: out, unmapped: Object.keys(unmapped).sort(), counts: byCat };
+  return { proposals: out, unmapped: Object.keys(unmapped).sort(), unmappedCounts: unmappedCounts, counts: byCat };
 }

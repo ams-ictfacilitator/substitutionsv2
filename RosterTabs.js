@@ -78,7 +78,7 @@ const ROSTER_SETTINGS_DEFAULTS = Object.freeze({
   staffCodePattern: '^[SW]0[0-9]{3}$',
   hrCategoryMap: Object.freeze([
     Object.freeze({ hrCategory: 'Teaching staff', rosterCategory: 'Teaching' }),
-    Object.freeze({ hrCategory: 'Administration', rosterCategory: 'Admin' }),
+    Object.freeze({ hrCategory: 'Administrative staff', rosterCategory: 'Admin' }),
     Object.freeze({ hrCategory: 'Support staff',  rosterCategory: 'Support Staff' }),
     Object.freeze({ hrCategory: 'Resource Person', rosterCategory: 'Resource Person' }),
   ]),

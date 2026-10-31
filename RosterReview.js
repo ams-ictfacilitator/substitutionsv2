@@ -184,6 +184,13 @@ function buildRosterReview_(input) {
     });
     var pa = matchProposeAdds(hr.records, sc.results, ms);
     summary.unmapped = pa.unmapped;
+    // One persistent information row per distinct unmapped category VALUE (count only; no person data).
+    pa.unmapped.forEach(function (v) {
+      var n = (pa.unmappedCounts || {})[v] || 0;
+      items.push(rosterReviewInfo_('Propose add', n + ' current HR ' + (n === 1 ? 'person has' : 'people have') + ' the category "' + v +
+        '", which is not in the HR Category mapping on 🧭 Roster Settings, so they cannot be proposed. Add a mapping row for it.',
+        { key: 'Propose add|' + REVIEW_UNMAPPED_MARK + v, displayName: '(unmapped HR category)', hrCategory: v, cls: 'Unmapped category' }));
+    });
     summary.propose = { total: pa.proposals.length, byCategory: pa.counts };
     var taken = {};
     rows.forEach(function (r) { taken[rosterLooseKey_(r.name)] = true; });
@@ -207,9 +214,14 @@ function buildRosterReview_(input) {
   return { items: items, summary: summary };
 }
 
-function rosterReviewInfo_(link, text) {
-  return { key: link + '|(unavailable)', link: link, displayName: '(source unavailable)', category: '', class: 'Unavailable', rule: '',
-           cands: [], hrCategory: '', hrDepartment: '', hrTeamRole: '', hrEmail: '', evidence: text, prefill: '',
+/** Key marker of an unmapped-category information row; the category value follows it. */
+const REVIEW_UNMAPPED_MARK = '(unmapped category)|';
+
+function rosterReviewInfo_(link, text, o) {
+  o = o || {};
+  return { key: o.key || (link + '|(unavailable)'), link: link, displayName: o.displayName || '(source unavailable)', category: '',
+           class: o.cls || 'Unavailable', rule: '',
+           cands: [], hrCategory: o.hrCategory || '', hrDepartment: '', hrTeamRole: '', hrEmail: '', evidence: text, prefill: '',
            rosterRow: 0, rosterState: '', info: true, basis: '' };
 }
 
@@ -322,7 +334,7 @@ function previewRosterMatches_() {
   if (!model.summary.hr.ok) { down['Staff Code'] = true; down['Propose add'] = true; }
   var items = model.items.slice();
   old.rows.forEach(function (o) {
-    if (!down[o.link] || /\(unavailable\)$/.test(o.key)) return;
+    if (!down[o.link] || /\(unavailable\)$/.test(o.key) || o.key.indexOf('|' + REVIEW_UNMAPPED_MARK) > -1) return;
     var c = Object.assign({}, o.cells), ev = norm_(c['Evidence']);
     if (ev.indexOf(REVIEW_UNAVAILABLE_NOTE) < 0) c['Evidence'] = (ev ? ev + '; ' : '') + REVIEW_UNAVAILABLE_NOTE;
     items.push({ retained: true, cells: c, key: o.key });
@@ -686,6 +698,12 @@ function applyRosterDecisions_(opts) {
     plan.outcomes.forEach(function (o) { results[o.row] = o.result; });
     rosterColumnUpdate_(review, rv.cols['Result'], REVIEW_DATA_START, results);
     clearRosterCache_();
+    // Script writes do not fire onEdit, so refresh the Non-Teaching Teacher dropdown here (T-021).
+    var c = plan.counts, changed = c.added || c.codes || c.emails || c.filled || c.noEmail || c.ignored ||
+      Object.keys(plan.edits).some(function (h) { return Object.keys(plan.edits[h]).length; });
+    if (changed) {
+      try { refreshNonTeachingTeacherList_(); } catch (err) { Logger.log('non-teaching list: ' + ((err && err.message) || err)); }
+    }
     return { nothing: false, backup: backup, counts: plan.counts, results: plan.outcomes };
   });
 }
