@@ -441,7 +441,9 @@ function matchCounts_(results) {
  *   {link:'Email', displayName, category, row, class, rung, rule, candidates:[{name,email,row}] (max 3),
  *    candidateCount, excludedBy, note, demoted, prefill:'Accept'|''}
  *   class: 'Confirmed-exact' | 'Candidate' | 'Ambiguous' | 'Unmatched' | 'No email expected'
- *          | 'Already confirmed' | 'Name only'
+ *          | 'Already confirmed' | 'Already decided' | 'Name only'
+ *   'Already decided' (T-022): Match Status is 'Ignored' or 'No email', a decision a human already made. The row is
+ *   not re-matched and gets no candidates; setting Match Status back to 'Unreviewed' on 🪪 Teachers re-matches it.
  */
 function matchEmailLinks(rosterRows, importHrRows, settings) {
   var S = matchPrepareSettings(settings), stats = { examined: 0 };
@@ -467,6 +469,8 @@ function matchEmailLinks(rosterRows, importHrRows, settings) {
       candidates: [], candidateCount: 0, excludedBy: '', note: '', deviceLike: false, heldDifferent: false, writeEmail: true, demoted: false, prefill: '', proposedEmail: '' };
     if (cat.nameOnly) { res.class = 'Name only'; res.note = 'Name-match-only category: no email is taken from any source'; return res; }
     if (matchLc_(r.matchStatus) === 'confirmed') { res.class = 'Already confirmed'; return res; }
+    var st = matchLc_(r.matchStatus);
+    if (st === 'ignored' || st === 'no email') { res.class = 'Already decided'; return res; }   // T-022: a human decision is sticky; 'Unreviewed' brings the row back
     var q = matchQuery_(S, r.displayName);
     if (!q.norm) { res.class = 'Unmatched'; res.note = 'Blank Display Name'; return res; }
     var lad = matchLadder_(S, ix, q, stats);

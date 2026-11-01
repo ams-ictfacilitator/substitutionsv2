@@ -121,6 +121,10 @@ check('R3 two shared tokens -> Candidate', er('Ana Sample').class === 'Candidate
 check('R3 first token + agreeing initial -> Candidate', er('Leo Q').class === 'Candidate' && er('Leo Q').rung === 'R3');
 check('nothing found -> Unmatched', er('Zed Nowhere').class === 'Unmatched');
 check('Confirmed rows are never re-matched', er('Latha Example').class === 'Already confirmed' && er('Latha Example').candidates.length === 0);
+check('T-022 Ignored and No email rows are Already decided: not re-matched, no candidates', ['Ignored', 'No email', 'ignored'].every(st => {
+  ctx.__rd = [R('Ravi Sample', 'Teaching', { matchStatus: st })]; const x = run('matchEmailLinks(__rd, __imp, __S)').results[0];
+  return x.class === 'Already decided' && x.candidates.length === 0 && x.prefill === ''; }) &&
+  run('matchEmailLinks([Object.assign({}, __rd[0], {matchStatus: "Unreviewed"})], __imp, __S)').results[0].class === 'Confirmed-exact');
 check('category with Email required = FALSE -> No email expected', er('Wanda Support').class === 'No email expected');
 check('Resource Person is name-only: no email taken', er('Ravi Consultant').class === 'Name only' && er('Ravi Consultant').candidates.length === 0);
 check('duplicate email in the directory counts as one account', er('Dev Dup').class === 'Confirmed-exact' && E.duplicateEmails.join() === 'dev.dup@school.example');
@@ -192,7 +196,7 @@ check('Replaced By on an Active row does not bypass the conflict', (() => {
     const r = run('matchEmailLinks(__rh3, __imp, __S)').results[0];
     check('email typed on an Active row with Match Status ' + JSON.stringify(st) + ' is held: demoted, no pre-fill, holder named', r.class === 'Ambiguous' && r.demoted && r.prefill === '' && /Holder Row/.test(r.note));
   });
-  ['Needs review', 'Ignored', ''].forEach(st => {
+  ['Needs review', ''].forEach(st => {      // T-022: 'Ignored' is now 'Already decided', see below
     ctx.__rh4 = [R('Ravi Sample', 'Teaching', { matchStatus: st, email: 'old@school.example' })];
     const r = run('matchEmailLinks(__rh4, __imp, __S)').results[0];
     check('Active row holding a DIFFERENT email (status ' + JSON.stringify(st) + '): Candidate, no pre-fill, no write flag, masked note', r.class === 'Candidate' && r.prefill === '' &&

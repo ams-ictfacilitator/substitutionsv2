@@ -152,7 +152,10 @@ function buildRosterReview_(input) {
     summary.email = em.counts;
     summary.importHr.excluded = em.excluded.length;
     em.results.forEach(function (res, i) {
-      if (res.class === 'Already confirmed' || res.class === 'Name only') return;
+      // Already confirmed / Already decided / Name only need no decision; 'No email expected' (unmatched, email not
+      // required) needs none either. All of them are counted in the summary, none is listed (T-022).
+      if (res.class === 'Already confirmed' || res.class === 'Already decided' || res.class === 'Name only' ||
+          res.class === 'No email expected') return;
       var r = rows[i];
       items.push({ key: 'Email|' + r.name, link: 'Email', displayName: r.name, category: r.category, class: res.class, rule: res.rule,
         cands: rosterReviewCands_(res.candidates, 'email'), hrCategory: '', hrDepartment: '', hrTeamRole: '', hrEmail: '',
@@ -174,7 +177,7 @@ function buildRosterReview_(input) {
     sc.results.forEach(function (res, i) {
       var r = rows[i];
       var cat = rosterCategoryInfo_(input.settings, r.category);
-      if (!res.writeCode && !(cat.nameOnly && res.candidates.length)) return;   // nothing a human could decide here
+      if (!res.writeCode && !(cat.nameOnly && rosterReviewNameOnlyFillable_(res, r, cat))) return;   // nothing a human could decide here
       var top = res.candidates[0] || null;
       items.push({ key: 'Staff Code|' + r.name, link: 'Staff Code', displayName: r.name, category: r.category, class: res.class, rule: res.rule,
         cands: rosterReviewCands_(res.candidates, 'staffCode'),
@@ -212,6 +215,19 @@ function buildRosterReview_(input) {
     if (it.prefill) summary.prefilled++;
   });
   return { items: items, summary: summary };
+}
+
+/**
+ * T-022. A name-only roster row is worth listing only when Apply could write something for it: the category is not
+ * teaching, and a candidate (Pick 1-3) carries a Department / Team the row lacks, with no category conflict and no
+ * unmapped category. Same blank-only fill condition as rosterReviewEvalCode_.
+ */
+function rosterReviewNameOnlyFillable_(res, r, cat) {
+  if (cat.teaching) return false;
+  return (res.candidates || []).some(function (c) {
+    if (c.categoryConflict || c.unmappedCategory) return false;
+    return !!((c.department && !r.department) || (c.teamRole && !r.team));
+  });
 }
 
 /** Key marker of an unmapped-category information row; the category value follows it. */
@@ -367,6 +383,10 @@ function rosterReviewSummaryText_(s) {
   var lines = ['🪪 Match preview — ' + rosterClock_(),
     'Roster rows: ' + s.rosterRows + ' · Propose add from HR Database: ' + s.propose.total + (cats ? ' (' + cats + ')' : '')];
   lines.push(s.importHr.ok ? 'EMAIL      ' + cls(s.email) : 'EMAIL      unavailable: ' + s.importHr.reason);
+  if (s.importHr.ok) {
+    lines.push('Skipped (not listed): ' + c(s.email, 'Already decided') + ' already decided (Ignored / No email; set Match Status to Unreviewed to bring one back) · ' +
+      c(s.email, 'No email expected') + ' no email expected');
+  }
   lines.push(s.hr.ok
     ? 'STAFF CODE ' + cls(s.staffCode) + ' · pattern warnings ' + s.patternWarnings + ' · corroborated by email ' + s.corroborated
     : 'STAFF CODE unavailable: ' + s.hr.error);

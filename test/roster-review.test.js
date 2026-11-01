@@ -834,3 +834,60 @@ const TEACH = '🪪 Teachers', REV = '🪪 Roster Review', LOGT = '🪪 Roster L
   const dups = Object.keys(decl).filter(n => decl[n].length > 1);
   check('no duplicate top-level names across the root files (RosterReview.js added)', dups.length === 0 && files.includes('RosterReview.js'), J(dups));
 }
+
+/* ───────── T-022: decisions stick, rows that need no decision are not listed ───────── */
+{
+  const imp = [['Orla Veston', 'orla.veston@example.test'], ['Pim Harrow', 'pim.harrow@example.test'], ['Quin Tallow', 'quin.tallow@example.test'],
+               ['Sol Fenwick', 'sol.fenwick@example.test']];
+  const roster = [
+    { 'Display Name': 'Orla Veston', Category: 'Teaching', Active: true, 'Match Status': 'Ignored' },
+    { 'Display Name': 'Pim Harrow', Category: 'Support Staff', Active: true, 'Match Status': 'No email' },
+    { 'Display Name': 'Quin Tallow', Category: 'Teaching', Active: true, 'Match Status': 'Unreviewed' },
+    { 'Display Name': 'Rue Marlow', Category: 'Support Staff', Active: true },             // unmatched, email not required
+    { 'Display Name': 'Sol Fenwick', Category: 'Support Staff', Active: true },            // R1 candidate
+    { 'Display Name': 'Resource A', Category: 'Resource Person', Active: true },           // HR Dept/Team blank here -> fillable
+    { 'Display Name': 'Resource B', Category: 'Resource Person', Active: true, Department: 'Arts', Team: 'Visiting' },   // nothing to fill
+    { 'Display Name': 'Resource C', Category: 'Resource Person', Active: true },           // HR category conflict -> nothing writable
+    { 'Display Name': 'Contract T', Category: 'Teaching (Contract)', Active: true },       // name-only AND teaching
+  ];
+  const hr = [
+    { name: 'Resource A', cat: 'Resource Person', code: 'N/A', dept: 'Arts', team: 'Visiting' },
+    { name: 'Resource B', cat: 'Resource Person', code: 'N/A', dept: 'Arts', team: 'Visiting' },
+    { name: 'Resource C', cat: 'Support staff', code: 'W0301', dept: 'Garden', team: 'Grounds' },
+    { name: 'Contract T', cat: 'Contract teaching', code: 'N/A', dept: 'Maths', team: 'High School' },
+  ];
+  const t = mk({ imp, roster, hr });
+  t.run(`__addSettingRow('Categories', ['Teaching (Contract)', 'TRUE', 'Name only', 'FALSE', ''])`);
+  t.run(`__addSettingRow('HR Category mapping', ['Contract teaching', 'Teaching (Contract)'])`);
+  const listed = key => { try { t.run(`__reviewRowOf(${J(key)})`); return true; } catch (e) { return false; } };
+  const nrows = key => t.tab(REV).split(key).length - 1;
+  const res = t.preview();
+  const em = res.summary.email;
+
+  check('T-022 an Ignored Email row is class Already decided and not listed', !listed('Email|Orla Veston') && em['Already decided'] >= 1);
+  check('T-022 a No email Email row is class Already decided and not listed', !listed('Email|Pim Harrow') && em['Already decided'] === 2, J(em));
+  check('T-022 an Unreviewed row is still matched and listed', listed('Email|Quin Tallow') && t.rv('Email|Quin Tallow', 'Class') === 'Confirmed-exact');
+  check('T-022 a No email expected row is not listed but is counted', !listed('Email|Rue Marlow') && em['No email expected'] === 1, J(em));
+  check('T-022 a Support Staff person with an R1 candidate is still listed', listed('Email|Sol Fenwick') && t.rv('Email|Sol Fenwick', 'Candidate 1 Value') === 'sol.fenwick@example.test');
+  check('T-022 Resource Person with HR Department/Team the roster lacks is listed once', listed('Staff Code|Resource A') && nrows('Staff Code|Resource A') === 1);
+  check('T-022 a Resource Person with nothing to fill is not listed', !listed('Staff Code|Resource B'));
+  check('T-022 a name-only row with a category conflict and nothing writable is not listed', !listed('Staff Code|Resource C'));
+  check('T-022 a Teaching (Contract) name-only row is never listed as a Staff Code row', !listed('Staff Code|Contract T'));
+  const text = t.run('rosterReviewSummaryText_(previewRosterMatches_().summary)');
+  check('T-022 the summary dialog counts already decided and no email expected', /2 already decided/.test(text) && /1 no email expected/.test(text) && /Unreviewed/.test(text), text);
+  check('T-022 the summary stays counts only (no PII sentinel, no address)', !/PII-SENTINEL|@example\.test/.test(text));
+
+  // Apply fills Department/Team once; the next Preview no longer lists the row.
+  t.preview();
+  t.decide('Staff Code|Resource A', 'Accept');
+  t.apply();
+  check('T-022 Apply still fills the blank Department/Team of a name-only row', t.row('Resource A').department === 'Arts' && t.row('Resource A').team === 'Visiting' && t.row('Resource A').staffCode === '');
+  t.preview();
+  check('T-022 after Apply filled them, the next Preview does not list the row', !listed('Staff Code|Resource A'));
+
+  // Bring a decided row back with Unreviewed.
+  t.run(`(function(){ var c = rosterHeaderCols_(sheet_(SS.ROSTER).getRange(2, 1, 1, sheet_(SS.ROSTER).getLastColumn()).getValues()[0]); var sh = sheet_(SS.ROSTER), mc = c[rosterHeaderKey_('Match Status')], nc = c[rosterHeaderKey_('Display Name')];
+    for (var r = 3; r <= sh.getLastRow(); r++) if (sh.cells[r + ',' + nc] === 'Orla Veston') sh.cells[r + ',' + mc] = 'Unreviewed'; clearRosterCache_(); })()`);
+  t.preview();
+  check('T-022 setting Match Status back to Unreviewed lists the row again', listed('Email|Orla Veston') && t.row('Orla Veston').matchStatus === 'Unreviewed');
+}
